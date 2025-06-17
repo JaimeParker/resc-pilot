@@ -108,13 +108,19 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
                 break;
             }
 
-            if (isReachedTarget(takeoff_pos_)) {
-                std::cout << "\033[1;32m[PX4 FSM]: Takeoff done, holding.\033[0m" << std::endl;
-                hold_pos_ = takeoff_pos_;
-                changeFSMState(HOLD);
-            } else {
-                publishPoseSetpoint(takeoff_pos_);
-            }
+            // uncomment this if you want a bang-bang takeoff
+            // applyble for robust localization like motion capture)
+
+            // if (isReachedTarget(takeoff_pos_)) {
+            //     std::cout << "\033[1;32m[PX4 FSM]: Takeoff done, holding.\033[0m" << std::endl;
+            //     hold_pos_ = takeoff_pos_;
+            //     changeFSMState(HOLD);
+            // } else {
+            //     publishPoseSetpoint(takeoff_pos_);
+            // }
+
+            fsmGradualTakeoff();
+
             break;
 
         case HOLD:
@@ -142,6 +148,7 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
             if (!in_geo_fence_) {
                 std::cout << "\033[1;33m[PX4 FSM]: Out of geo fence! Returning.\033[0m" << std::endl;
                 geoFenceClamp(pos_);
+                hold_pos_ = pos_;
                 changeFSMState(HOLD);
                 break;
             }
@@ -161,6 +168,7 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
             if (!in_geo_fence_) {
                 std::cout << "\033[1;33m[PX4 FSM]: Out of geo fence! Returning.\033[0m" << std::endl;
                 geoFenceClamp(pos_);
+                hold_pos_ = pos_;
                 changeFSMState(HOLD);
                 break;
             }
@@ -171,6 +179,7 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
                 traj_cmd_received_ = false;
                 if (ros::Time::now() - last_traj_cmd_time_ > ros::Duration(traj_cmd_timeout_)) {
                     std::cout << "\033[1;33m[PX4 FSM]: Trajectory command timeout.\033[0m" << std::endl;
+                    hold_pos_ = pos_;
                     changeFSMState(HOLD);
                 }
             }
@@ -279,7 +288,9 @@ void PX4CtrlFSM::poseCallback(const geometry_msgs::PoseStamped::ConstPtr &msg) {
             std::cout << "[PX4 FSM]: Init position set to [" << init_pos_.x() << ", "
                       << init_pos_.y() << ", " << init_pos_.z() << "]" << std::endl;
             takeoff_pos_.head(2) = init_pos_.head(2);
-            takeoff_pos_.z() = cruise_height_;
+            takeoff_pos_.z() = cruise_height_ + init_pos_.z();
+            
+            init_pos_buffer_.clear();
         }
     }
 
@@ -417,34 +428,30 @@ void PX4CtrlFSM::fsmSoftLand() {
 
 void PX4CtrlFSM::fsmGradualTakeoff() {
     // Initialize takeoff variables only once
-    static bool takeoff_initialized = false;
     static ros::Time takeoff_start_time;
-    static Eigen::Vector3d takeoff_start_pos;
-    static double ascent_rate = 0.005;
 
-    if (!takeoff_initialized) {
-        takeoff_start_pos = pos_; // Start from current position
+    if (!takeoff_initialized_) {
+        hold_pos_ = takeoff_pos_;
+        // TODO(zhaohong): if u set pos_ to hold_pos_ here, the x and y element set of takeoff_pos_ will be useless
+        //  However, it seems more smart to set x and y element of pos_ to hold_pos_ here since its newer than takeoff_pos_
+        hold_pos_.z() = pos_.z();
         takeoff_start_time = ros::Time::now();
-        takeoff_initialized = true;
-        std::cout << "[PX4 FSM]: Gradual takeoff initialized at [" << takeoff_start_pos.transpose() << "]" << std::endl;
+        takeoff_initialized_ = true;
+        std::cout << "[PX4 FSM]: Takeoff position [" << takeoff_pos_.transpose() << "] initialized." << std::endl;
     }
 
-    Eigen::Vector3d current_target = takeoff_start_pos;
-    current_target.x() = takeoff_pos_.x();
-    current_target.y() = takeoff_pos_.y();
+    hold_pos_.z() += 0.005; // Gradually increase altitude
 
-    current_target.z() += ascent_rate;
-    
-    if (current_target.z() > takeoff_pos_.z()) {
-        current_target.z() = takeoff_pos_.z();
+    if (hold_pos_.z() > takeoff_pos_.z()) {
+        hold_pos_.z() = takeoff_pos_.z();
     }
 
-    publishPoseSetpoint(current_target);
+    publishPoseSetpoint(hold_pos_);
 
     if (isReachedTarget(takeoff_pos_)) {
         std::cout << "\033[1;32m[PX4 FSM]: Takeoff done, holding.\033[0m" << std::endl;
         hold_pos_ = takeoff_pos_;
-        takeoff_initialized = false; // Reset for next takeoff
+        takeoff_initialized_ = false; // Reset for next takeoff
         changeFSMState(HOLD);
     }
 
@@ -452,7 +459,7 @@ void PX4CtrlFSM::fsmGradualTakeoff() {
     if ((ros::Time::now() - takeoff_start_time).toSec() > 30.0) { // 30 seconds timeout
         std::cout << "\033[1;33m[PX4 FSM]: Takeoff timeout. Switching to HOLD at current position.\033[0m" << std::endl;
         hold_pos_ = pos_;
-        takeoff_initialized = false;
+        takeoff_initialized_ = false;
         changeFSMState(HOLD);
     }
 }
@@ -487,6 +494,7 @@ bool PX4CtrlFSM::triggerPX4Disarm() {
     for (int i = 0; i < 3; i++) {
         if (arming_client_.call(disarm_cmd) && disarm_cmd.response.success) {
             std::cout << "\033[1;32m[PX4 FSM]: PX4 disarmed successfully.\033[0m" << std::endl;
+            init_pos_set_ = false;  // Reset init position for next takeoff
             return true;
         }
         std::cout << "Retrying disarm..." << std::endl;
@@ -559,7 +567,7 @@ void PX4CtrlFSM::navGoalCallback(const geometry_msgs::PoseStamped::ConstPtr &msg
 
 void PX4CtrlFSM::handleEditMode() {
     // TODO(zhaohong): yaw will be set to 0.0, need to change it later
-    publishPoseSetpoint(pos_);
+    publishPoseSetpoint(hold_pos_);
 }
 
 void PX4CtrlFSM::executeAutoLandingSequence() {

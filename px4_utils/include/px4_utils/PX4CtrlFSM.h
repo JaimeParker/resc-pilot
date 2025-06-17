@@ -108,6 +108,7 @@ private:
     bool landing_sequence_active_ = false;
     bool return_traj_sent_ = false;
     bool final_align_started_ = false;
+    bool takeoff_initialized_ = false;
     ros::Subscriber nav_goal_sub_, edit_mode_sub_;
     ros::Publisher nav_goal_pub_;
     ros::Subscriber rtb_sub_;
