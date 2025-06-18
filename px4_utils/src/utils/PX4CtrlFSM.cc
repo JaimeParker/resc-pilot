@@ -48,6 +48,9 @@ void PX4CtrlFSM::init(ros::NodeHandle &nh) {
     nav_goal_pub_ = nh.advertise<geometry_msgs::PoseStamped>("/move_base_simple/goal", 1);
     rtb_sub_ = nh.subscribe("/return_to_base", 1, &PX4CtrlFSM::rtbCallback, this);
     arm_sub_ = nh.subscribe("/trigger_arming", 1, &PX4CtrlFSM::armCallback, this);
+
+    // Publisher for origin position as geometry_msgs::Point
+    origin_pos_pub_ = nh.advertise<geometry_msgs::Point>("/origin_pos", 1);
 }
 
 void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
@@ -111,15 +114,15 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
             // uncomment this if you want a bang-bang takeoff
             // applyble for robust localization like motion capture)
 
-            // if (isReachedTarget(takeoff_pos_)) {
-            //     std::cout << "\033[1;32m[PX4 FSM]: Takeoff done, holding.\033[0m" << std::endl;
-            //     hold_pos_ = takeoff_pos_;
-            //     changeFSMState(HOLD);
-            // } else {
-            //     publishPoseSetpoint(takeoff_pos_);
-            // }
+            if (isReachedTarget(takeoff_pos_)) {
+                std::cout << "\033[1;32m[PX4 FSM]: Takeoff done, holding.\033[0m" << std::endl;
+                hold_pos_ = takeoff_pos_;
+                changeFSMState(HOLD);
+            } else {
+                publishPoseSetpoint(takeoff_pos_);
+            }
 
-            fsmGradualTakeoff();
+            // fsmGradualTakeoff();
 
             break;
 
@@ -294,9 +297,22 @@ void PX4CtrlFSM::poseCallback(const geometry_msgs::PoseStamped::ConstPtr &msg) {
         }
     }
 
+    if (!origin_pos_initialized_ && init_pos_set_) {
+        // fix origin position when the first init position is set
+        origin_point_.x = init_pos_.x();
+        origin_point_.y = init_pos_.y();
+        origin_point_.z = init_pos_.z();
+        origin_pos_initialized_ = true;
+        std::cout << "[PX4 FSM]: Origin position initialized to [" << origin_point_.x << ", "
+                  << origin_point_.y << ", " << origin_point_.z << "]" << std::endl;
+    } else {
+        origin_pos_pub_.publish(origin_point_);
+    }
+
     if (pos_.x() < -fence_x_ / 2.0 || pos_.x() > fence_x_ / 2.0 ||
         pos_.y() < -fence_y_ / 2.0 || pos_.y() > fence_y_ / 2.0 ||
-        pos_.z() > fence_z_ || pos_.z() < ground_height_) {
+        pos_.z() > fence_z_ ) {
+        // remove || pos_.z() < ground_height_ since z of rtk may be negative
         in_geo_fence_ = false;
 //        use_rl_ = false;
     } else {
@@ -371,7 +387,8 @@ void PX4CtrlFSM::publishTrajSetpoint() {
 
     traj_target_.position.x = quad_pos_cmd_.position.x;
     traj_target_.position.y = quad_pos_cmd_.position.y;
-    traj_target_.position.z = quad_pos_cmd_.position.z;
+    // planner normal z(near 0 initially) -> rtk z(may be -10 to 10 m although on the ground)
+    traj_target_.position.z = quad_pos_cmd_.position.z + origin_point_.z;
 
     traj_target_.velocity.x = quad_pos_cmd_.velocity.x;
     traj_target_.velocity.y = quad_pos_cmd_.velocity.y;

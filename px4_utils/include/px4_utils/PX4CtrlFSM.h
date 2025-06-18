@@ -104,15 +104,18 @@ private:
 
     /* for return-landing-takeoff-traj-landing process */
     Eigen::Vector3d landing_target_pos_;
+    geometry_msgs::Point origin_point_;
     bool in_edit_mode_ = false;
     bool landing_sequence_active_ = false;
     bool return_traj_sent_ = false;
     bool final_align_started_ = false;
     bool takeoff_initialized_ = false;
+    bool origin_pos_initialized_ = false;
     ros::Subscriber nav_goal_sub_, edit_mode_sub_;
     ros::Publisher nav_goal_pub_;
     ros::Subscriber rtb_sub_;
     ros::Subscriber arm_sub_;
+    ros::Publisher origin_pos_pub_;
 
     enum LandingSequenceState {
         RETURN_TO_TAKEOFF,
