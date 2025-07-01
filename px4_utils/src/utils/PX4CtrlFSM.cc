@@ -51,6 +51,8 @@ void PX4CtrlFSM::init(ros::NodeHandle &nh) {
 
     // Publisher for origin position as geometry_msgs::Point
     origin_pos_pub_ = nh.advertise<geometry_msgs::Point>("/origin_pos", 1);
+    height_change_sub_ = nh.subscribe("/height_change", 10, &PX4CtrlFSM::heightChangeCallback, this);
+    abs_height_pub_ = nh.advertise<std_msgs::Float32>("/abs_height", 1);
 }
 
 void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
@@ -134,7 +136,7 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
                 last_traj_cmd_time_ = ros::Time::now();
                 changeFSMState(TRAJ_CMD);
             } else {
-                publishPoseSetpoint(hold_pos_);
+                publishPoseSetpoint(hold_pos_, hold_yaw_);
             }
             break;
 
@@ -144,6 +146,7 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
             if (!motion_smooth_) {
                 std::cout << "\033[1;33m[PX4 FSM]: Aggressive motion! Hold now.\033[0m" << std::endl;
                 hold_pos_ = pos_;
+                hold_yaw_ = att_.z();
                 changeFSMState(HOLD);
                 break;
             }
@@ -152,6 +155,7 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
                 std::cout << "\033[1;33m[PX4 FSM]: Out of geo fence! Returning.\033[0m" << std::endl;
                 geoFenceClamp(pos_);
                 hold_pos_ = pos_;
+                hold_yaw_ = att_.z();
                 changeFSMState(HOLD);
                 break;
             }
@@ -163,6 +167,7 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
                     std::cout << "[PX4 FSM]: RL command is not allowed to use, will hold." << std::endl;
                 }
                 hold_pos_ = pos_;
+                hold_yaw_ = att_.z();
                 changeFSMState(HOLD);
             }
             break;
@@ -172,19 +177,24 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
                 std::cout << "\033[1;33m[PX4 FSM]: Out of geo fence! Returning.\033[0m" << std::endl;
                 geoFenceClamp(pos_);
                 hold_pos_ = pos_;
+                hold_yaw_ = att_.z();
                 changeFSMState(HOLD);
                 break;
             }
 
             if (traj_cmd_received_ && ros::Time::now() - last_traj_cmd_time_ < ros::Duration(traj_cmd_timeout_)) {
                 publishTrajSetpoint();
-            } else {
+            } 
+            else {
                 traj_cmd_received_ = false;
-                if (ros::Time::now() - last_traj_cmd_time_ > ros::Duration(traj_cmd_timeout_)) {
-                    std::cout << "\033[1;33m[PX4 FSM]: Trajectory command timeout.\033[0m" << std::endl;
-                    hold_pos_ = pos_;
-                    changeFSMState(HOLD);
-                }
+                // if (ros::Time::now() - last_traj_cmd_time_ > ros::Duration(traj_cmd_timeout_)) {
+                //     std::cout << "\033[1;33m[PX4 FSM]: Trajectory command timeout.\033[0m" << std::endl;
+                //     hold_pos_ = pos_;
+                //     changeFSMState(HOLD);
+                // }
+                hold_pos_ = pos_;
+                hold_yaw_ = att_.z();
+                changeFSMState(HOLD);
             }
 
             break;
@@ -335,12 +345,22 @@ void PX4CtrlFSM::trajCmdCallback(const quadrotor_msgs::PositionCommand::ConstPtr
     traj_cmd_received_ = true;
     last_traj_cmd_time_ = ros::Time::now();
     quad_pos_cmd_ = *msg;
+
+    traj_target_vel_ = std::sqrt(
+        quad_pos_cmd_.velocity.x * quad_pos_cmd_.velocity.x +
+        quad_pos_cmd_.velocity.y * quad_pos_cmd_.velocity.y +
+        quad_pos_cmd_.velocity.z * quad_pos_cmd_.velocity.z);
+
+    if (traj_target_vel_ < 0.01) {
+        traj_cmd_received_ = false;
+    }
 }
 
 void PX4CtrlFSM::landCmdCallback(const std_msgs::Bool::ConstPtr &msg) {
     if (msg->data && exec_state_ == HOLD || exec_state_ == RL_MOTION || exec_state_ == TRAJ_CMD) {
         std::cout << "[PX4 FSM]: Landing command received. Switching to SOFT_LAND." << std::endl;
         hold_pos_ = pos_;
+        hold_yaw_ = att_.z();
         changeFSMState(SOFT_LAND);
     }
 }
@@ -562,6 +582,7 @@ void PX4CtrlFSM::editModeCallback(const std_msgs::Bool::ConstPtr &msg) {
 void PX4CtrlFSM::enterEditMode() {
     in_edit_mode_ = true;
     hold_pos_ = pos_;
+    hold_yaw_ = att_.z();
     changeFSMState(EDIT);
     std::cout << "[PX4 FSM]: Entered EDIT mode. Click on 2D Nav Goal to set landing position." << std::endl;
 }
@@ -584,7 +605,7 @@ void PX4CtrlFSM::navGoalCallback(const geometry_msgs::PoseStamped::ConstPtr &msg
 
 void PX4CtrlFSM::handleEditMode() {
     // TODO(zhaohong): yaw will be set to 0.0, need to change it later
-    publishPoseSetpoint(hold_pos_);
+    publishPoseSetpoint(hold_pos_, hold_yaw_);
 }
 
 void PX4CtrlFSM::executeAutoLandingSequence() {
@@ -612,7 +633,8 @@ void PX4CtrlFSM::executeAutoLandingSequence() {
             }
 
             if (isReachedTargetHorizontal(takeoff_pos_) && !final_align_started_) {
-                std::cout << "[PX4 FSM]: Close to takeoff pos, start precision alignment.\033[0m" << std::endl;
+                std::cout << "[PX4 FSM]: Close to horizontal takeoff pos, start precision alignment.\033[0m" << std::endl;
+                re_takeoff_pos_.z() = hold_pos_.z();  // let the re-takeoff position be the current height
                 final_align_started_ = true;
             }
 
@@ -636,8 +658,9 @@ void PX4CtrlFSM::executeAutoLandingSequence() {
             break;
 
         case TAKEOFF_AGAIN:
-            publishPoseSetpoint(takeoff_pos_);
-            if (isReachedTarget(takeoff_pos_)) {
+            re_takeoff_pos_.head(2) = takeoff_pos_.head(2);  // Keep x, y same as takeoff position
+            publishPoseSetpoint(re_takeoff_pos_);
+            if (isReachedTarget(re_takeoff_pos_)) {
                 landing_sequence_state_ = MOVE_TO_TARGET;
 
                 geometry_msgs::PoseStamped goal_msg;
@@ -645,7 +668,7 @@ void PX4CtrlFSM::executeAutoLandingSequence() {
                 goal_msg.header.frame_id = "map";
                 goal_msg.pose.position.x = landing_target_pos_.x();
                 goal_msg.pose.position.y = landing_target_pos_.y();
-                goal_msg.pose.position.z = takeoff_pos_.z();
+                goal_msg.pose.position.z = re_takeoff_pos_.z();
                 goal_msg.pose.orientation.w = 1.0;
 
                 nav_goal_pub_.publish(goal_msg);
@@ -684,6 +707,18 @@ void PX4CtrlFSM::armCallback(const std_msgs::Bool::ConstPtr &msg) {
         // TODO(zhaohong): expand this function, no need to be only in DISARM state
         std::cout << "[PX4 FSM]: Arming command received. Attempting to arm." << std::endl;
         changeFSMState(INIT);
+    }
+}
+
+void PX4CtrlFSM::heightChangeCallback(const std_msgs::Float32::ConstPtr &msg) {
+    if (exec_state_ == HOLD) {
+        hold_pos_.z() += msg->data;
+        std::cout << "[PX4 FSM] Height changed to: " << hold_pos_.z() << std::endl;
+        // TODO: publish the new z height to the planner
+        abs_height_msg_.data = hold_pos_.z() - origin_point_.z;
+        abs_height_pub_.publish(abs_height_msg_);
+    } else {
+        ROS_WARN("[PX4 FSM] Height can only be changed in HOLD mode. Current mode: %s", state_str_[exec_state_].c_str());
     }
 }
 

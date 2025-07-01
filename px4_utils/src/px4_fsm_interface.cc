@@ -4,6 +4,7 @@
 
 #include <ros/ros.h>
 #include <std_msgs/Bool.h>
+#include <std_msgs/Float32.h>
 #include <string>
 #include <termios.h>
 #include <unistd.h>
@@ -59,11 +60,25 @@ int main(int argc, char **argv) {
         arming_topic = "/trigger_arming";
         ROS_WARN("[Land Command]: Using default arming topic: %s", arming_topic.c_str());
     }
+
+    std::string height_change_topic;
+    if (!nh.getParam("height_change_topic", height_change_topic)) {
+        height_change_topic = "/height_change";
+        ROS_WARN("[Land Command]: Using default height change topic: %s", height_change_topic.c_str());
+    }
+
+    std::string hold_topic;
+    if (!nh.getParam("hold_topic", hold_topic)) {
+        hold_topic = "/trigger_hold";
+        ROS_WARN("[Land Command]: Using default hold topic: %s", hold_topic.c_str());
+    }
     
     ros::Publisher land_pub = nh.advertise<std_msgs::Bool>(land_topic, 10);
     ros::Publisher editable_mode_pub = nh.advertise<std_msgs::Bool>(editable_mode_topic, 10);
     ros::Publisher rtb_pub = nh.advertise<std_msgs::Bool>(rtb_topic, 10);
     ros::Publisher arm_pub = nh.advertise<std_msgs::Bool>(arming_topic, 10);
+    ros::Publisher height_change_pub = nh.advertise<std_msgs::Float32>(height_change_topic, 10);
+    ros::Publisher hold_pub = nh.advertise<std_msgs::Bool>(hold_topic, 10);
 
     ros::ServiceClient arming_client = nh.serviceClient<mavros_msgs::CommandBool>("/mavros/cmd/arming");
     
@@ -78,6 +93,9 @@ int main(int argc, char **argv) {
 
     std_msgs::Bool arm_msg;
     arm_msg.data = false;
+
+    std_msgs::Bool hold_msg;
+    hold_msg.data = false;
     
     setNonBlockingInput(); // Configure terminal
     
@@ -91,73 +109,94 @@ int main(int argc, char **argv) {
     std::cout << "  e/E - Toggle editable mode" << std::endl;
     std::cout << "  t/T - Trigger arming command" << std::endl;
     std::cout << "  r/R - Return to base and land(developing)" << std::endl;
+    std::cout << "  h/H - Switch to HOLD mode" << std::endl;
+    std::cout << "  (Fn)+PgUp - Increase height by 0.1m" << std::endl;
+    std::cout << "  (Fn)+PgDn - Decrease height by 0.1m" << std::endl;
     std::cout << "=========================" << std::endl;
     
     ros::Rate rate(10);
-    bool key_pressed = false;
     
     while (ros::ok()) {
-        int key = -1;
-        
-        // Check if there's input available
-        char c;
-        if (read(STDIN_FILENO, &c, 1) > 0) {
-            key = c;
-            key_pressed = true;
-        }
-        
-        // Process key input
-        if (key_pressed) {
+        char buf[5] = {0};
+        int bytes_read = read(STDIN_FILENO, buf, sizeof(buf) - 1);
+
+        if (bytes_read > 0) {
             std::cout << "\r\033[K"; // Clear the current line
-            
-            switch (key) {
-                case 'l': 
-                case 'L':
-                    std::cout << "\033[1;32m[PX4 FSM USER INPUT]: l - Sending landing command...\033[0m" << std::endl;
-                    land_pub.publish(land_msg);
-                    break;
-                    
-                case 'q':
-                case 'Q':
-                    std::cout << "\033[1;36m[PX4 FSM USER INPUT]: q - Exiting...\033[0m" << std::endl;
-                    restoreTerminal();
-                    return 0;
+            if (bytes_read == 1) {
+                // Handle single character input
+                switch (buf[0]) {
+                    case 'l':
+                    case 'L':
+                        std::cout << "\033[1;32m[PX4 FSM USER INPUT]: l - Sending landing command...\033[0m" << std::endl;
+                        land_pub.publish(land_msg);
+                        break;
 
-                case 'e':
-                case 'E':
-                    // editable command
-                    if (!editable_mode_msg.data) {
-                        editable_mode_msg.data = true;
-                        std::cout << "\033[1;32m[PX4 FSM USER INPUT]: e - Editable mode ON\033[0m" << std::endl;
-                    } else {
-                        editable_mode_msg.data = false;
-                        std::cout << "\033[1;32m[PX4 FSM USER INPUT]: e - Editable mode OFF\033[0m" << std::endl;
-                    }
-                    editable_mode_pub.publish(editable_mode_msg);
-                    break;
+                    case 'q':
+                    case 'Q':
+                        std::cout << "\033[1;36m[PX4 FSM USER INPUT]: q - Exiting...\033[0m" << std::endl;
+                        restoreTerminal();
+                        return 0;
 
-                case 'r':
-                case 'R':
-                    // return to takeoff position then land
-                    std::cout << "\033[1;32m[PX4 FSM USER INPUT]: r - Returning to base...\033[0m" << std::endl;
-                    rtb_msg.data = true;
-                    rtb_pub.publish(rtb_msg);
-                    break;
+                    case 'e':
+                    case 'E':
+                        // editable command
+                        if (!editable_mode_msg.data) {
+                            editable_mode_msg.data = true;
+                            std::cout << "\033[1;32m[PX4 FSM USER INPUT]: e - Editable mode ON\033[0m" << std::endl;
+                        } else {
+                            editable_mode_msg.data = false;
+                            std::cout << "\033[1;32m[PX4 FSM USER INPUT]: e - Editable mode OFF\033[0m" << std::endl;
+                        }
+                        editable_mode_pub.publish(editable_mode_msg);
+                        break;
 
-                case 't':
-                case 'T':
-                    std::cout << "\033[1;32m[PX4 FSM USER INPUT]: t - Triggering arming command...\033[0m" << std::endl;
-                    arm_msg.data = true;
-                    arm_pub.publish(arm_msg);
-                    break;
-                    
-                default:
-                    std::cout << "\033[1;37m[PX4 FSM USER INPUT]: '" << static_cast<char>(key) 
-                              << "' - Unknown command\033[0m" << std::endl;
-                    break;
+                    case 'r':
+                    case 'R':
+                        // return to takeoff position then land
+                        std::cout << "\033[1;32m[PX4 FSM USER INPUT]: r - Returning to base...\033[0m" << std::endl;
+                        rtb_msg.data = true;
+                        rtb_pub.publish(rtb_msg);
+                        break;
+
+                    case 't':
+                    case 'T':
+                        std::cout << "\033[1;32m[PX4 FSM USER INPUT]: t - Triggering arming command...\033[0m" << std::endl;
+                        arm_msg.data = true;
+                        arm_pub.publish(arm_msg);
+                        break;
+
+                    case 'h':
+                    case 'H':
+                        std::cout << "\033[1;32m[PX4 FSM USER INPUT]: h - Switching to HOLD mode...\033[0m" << std::endl;
+                        hold_msg.data = true;
+                        hold_pub.publish(hold_msg);
+                        break;
+
+                    default:
+                        std::cout << "\033[1;37m[PX4 FSM USER INPUT]: '" << buf[0]
+                                  << "' - Unknown command\033[0m" << std::endl;
+                        break;
+                }
+            } else if (bytes_read == 4 && buf[0] == '\x1b' && buf[1] == '[' && buf[3] == '~') {
+                // Handle multi-byte escape sequences
+                std_msgs::Float32 height_msg;
+                if (buf[2] == '5') { // Page Up
+                    height_msg.data = 0.1f;
+                    height_change_pub.publish(height_msg);
+                    std::cout << "\033[1;32m[PX4 FSM USER INPUT]: PgUp - Increase height by 0.1m\033[0m" << std::endl;
+                } else if (buf[2] == '6') { // Page Down
+                    height_msg.data = -0.1f;
+                    height_change_pub.publish(height_msg);
+                    std::cout << "\033[1;32m[PX4 FSM USER INPUT]: PgDown - Decrease height by 0.1m\033[0m" << std::endl;
+                } else {
+                    std::cout << "[DEBUG]: Unknown escape sequence: " 
+                            << std::hex << (int)buf[0] << " " 
+                            << (int)buf[1] << " " 
+                            << (int)buf[2] << " " 
+                            << (int)buf[3] << std::endl;
+                }
             }
-            
-            key_pressed = false;
+
         }
         
         ros::spinOnce();

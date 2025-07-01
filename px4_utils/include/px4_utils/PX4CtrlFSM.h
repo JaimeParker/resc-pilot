@@ -14,6 +14,7 @@
 #include <mavros_msgs/PositionTarget.h>
 #include <mavros_msgs/ExtendedState.h>
 #include <std_msgs/Bool.h>
+#include <std_msgs/Float32.h>
 #include <quadrotor_msgs/PositionCommand.h>
 #include <Eigen/Eigen>
 
@@ -62,6 +63,7 @@ private:
     Eigen::Quaterniond att_quat_;
     Eigen::Vector3d takeoff_pos_;
     Eigen::Vector3d hold_pos_;
+    float hold_yaw_ = 0.0;
     bool use_rl_ = false;
     bool rl_cmd_received_ = false;
     bool traj_cmd_received_ = false;
@@ -104,6 +106,7 @@ private:
 
     /* for return-landing-takeoff-traj-landing process */
     Eigen::Vector3d landing_target_pos_;
+    Eigen::Vector3d re_takeoff_pos_;
     geometry_msgs::Point origin_point_;
     bool in_edit_mode_ = false;
     bool landing_sequence_active_ = false;
@@ -115,7 +118,12 @@ private:
     ros::Publisher nav_goal_pub_;
     ros::Subscriber rtb_sub_;
     ros::Subscriber arm_sub_;
+    ros::Subscriber hold_sub_;  // TODO: not used yet, for holding position
+    ros::Subscriber height_change_sub_;
     ros::Publisher origin_pos_pub_;
+    ros::Publisher abs_height_pub_;
+    std_msgs::Float32 abs_height_msg_;
+    double traj_target_vel_ = 0.0;
 
     enum LandingSequenceState {
         RETURN_TO_TAKEOFF,
@@ -159,6 +167,8 @@ public:
     void rtbCallback(const std_msgs::Bool::ConstPtr &msg);
     void armCallback(const std_msgs::Bool::ConstPtr &msg);
     void printLandingSequenceState();
+    void heightChangeCallback(const std_msgs::Float32::ConstPtr &msg);
+    
 
     template<typename T>
     void getParamWithWarning(ros::NodeHandle& nh, const std::string& param_name, T& param) {
