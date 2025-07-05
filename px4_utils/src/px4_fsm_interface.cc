@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <mavros_msgs/CommandBool.h>
+#include <geometry_msgs/Point.h>
 
 // Function to set terminal attributes for non-blocking input
 void setNonBlockingInput() {
@@ -72,6 +73,18 @@ int main(int argc, char **argv) {
         hold_topic = "/trigger_hold";
         ROS_WARN("[Land Command]: Using default hold topic: %s", hold_topic.c_str());
     }
+
+    std::string pos_change_topic;
+    if (!nh.getParam("position_change_topic", pos_change_topic)) {
+        pos_change_topic = "/position_change";
+        ROS_WARN("[Land Command]: Using default position change topic: %s", pos_change_topic.c_str());
+    }
+
+    std::string yaw_change_topic;
+    if (!nh.getParam("yaw_change_topic", yaw_change_topic)) {
+        yaw_change_topic = "/yaw_change";
+        ROS_WARN("[Land Command]: Using default yaw change topic: %s", yaw_change_topic.c_str());
+    }
     
     ros::Publisher land_pub = nh.advertise<std_msgs::Bool>(land_topic, 10);
     ros::Publisher editable_mode_pub = nh.advertise<std_msgs::Bool>(editable_mode_topic, 10);
@@ -79,6 +92,8 @@ int main(int argc, char **argv) {
     ros::Publisher arm_pub = nh.advertise<std_msgs::Bool>(arming_topic, 10);
     ros::Publisher height_change_pub = nh.advertise<std_msgs::Float32>(height_change_topic, 10);
     ros::Publisher hold_pub = nh.advertise<std_msgs::Bool>(hold_topic, 10);
+    ros::Publisher pos_change_pub = nh.advertise<geometry_msgs::Point>(pos_change_topic, 10);
+    ros::Publisher yaw_change_pub = nh.advertise<std_msgs::Float32>(yaw_change_topic, 10);
 
     ros::ServiceClient arming_client = nh.serviceClient<mavros_msgs::CommandBool>("/mavros/cmd/arming");
     
@@ -110,6 +125,12 @@ int main(int argc, char **argv) {
     std::cout << "  t/T - Trigger arming command" << std::endl;
     std::cout << "  r/R - Return to base and land(developing)" << std::endl;
     std::cout << "  h/H - Switch to HOLD mode" << std::endl;
+    std::cout << "  w/W - Move forward by 0.1m" << std::endl;
+    std::cout << "  a/A - Move left by 0.1m" << std::endl;
+    std::cout << "  s/S - Move backward by 0.1m" << std::endl;
+    std::cout << "  d/D - Move right by 0.1m" << std::endl;
+    std::cout << "  i/I - Increase yaw by 10 degrees" << std::endl;
+    std::cout << "  p/P - Decrease yaw by 10 degrees" << std::endl;
     std::cout << "  (Fn)+PgUp - Increase height by 0.1m" << std::endl;
     std::cout << "  (Fn)+PgDn - Decrease height by 0.1m" << std::endl;
     std::cout << "=========================" << std::endl;
@@ -119,6 +140,8 @@ int main(int argc, char **argv) {
     while (ros::ok()) {
         char buf[5] = {0};
         int bytes_read = read(STDIN_FILENO, buf, sizeof(buf) - 1);
+        geometry_msgs::Point pos_change_msg;
+        std_msgs::Float32 yaw_change_msg;
 
         if (bytes_read > 0) {
             std::cout << "\r\033[K"; // Clear the current line
@@ -170,6 +193,48 @@ int main(int argc, char **argv) {
                         std::cout << "\033[1;32m[PX4 FSM USER INPUT]: h - Switching to HOLD mode...\033[0m" << std::endl;
                         hold_msg.data = true;
                         hold_pub.publish(hold_msg);
+                        break;
+
+                    case 'w':
+                    case 'W':
+                        pos_change_msg.x = 0.1f;
+                        pos_change_pub.publish(pos_change_msg);
+                        std::cout << "\033[1;32m[PX4 FSM USER INPUT]: w - Move forward by 0.1m\033[0m" << std::endl;
+                        break;
+
+                    case 'a':
+                    case 'A':
+                        pos_change_msg.y = 0.1f;
+                        pos_change_pub.publish(pos_change_msg);
+                        std::cout << "\033[1;32m[PX4 FSM USER INPUT]: a - Move left by 0.1m\033[0m" << std::endl;
+                        break;
+
+                    case 's':
+                    case 'S':
+                        pos_change_msg.x = -0.1f;
+                        pos_change_pub.publish(pos_change_msg);
+                        std::cout << "\033[1;32m[PX4 FSM USER INPUT]: s - Move backward by 0.1m\033[0m" << std::endl;
+                        break;
+
+                    case 'd':
+                    case 'D':
+                        pos_change_msg.y = -0.1f;
+                        pos_change_pub.publish(pos_change_msg);
+                        std::cout << "\033[1;32m[PX4 FSM USER INPUT]: d - Move right by 0.1m\033[0m" << std::endl;
+                        break;
+
+                    case 'i':
+                    case 'I':
+                        yaw_change_msg.data = 10.0f;
+                        yaw_change_pub.publish(yaw_change_msg);
+                        std::cout << "\033[1;32m[PX4 FSM USER INPUT]: i - Increase yaw by 10 degrees\033[0m" << std::endl;
+                        break;
+
+                    case 'p':
+                    case 'P':
+                        yaw_change_msg.data = -10.0f;
+                        yaw_change_pub.publish(yaw_change_msg);
+                        std::cout << "\033[1;32m[PX4 FSM USER INPUT]: p - Decrease yaw by 10 degrees\033[0m" << std::endl;
                         break;
 
                     default:

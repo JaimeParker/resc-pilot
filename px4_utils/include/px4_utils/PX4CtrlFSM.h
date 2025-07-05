@@ -17,6 +17,7 @@
 #include <std_msgs/Float32.h>
 #include <quadrotor_msgs/PositionCommand.h>
 #include <Eigen/Eigen>
+#include <visualization_msgs/Marker.h>
 
 #include "px4_utils/Convertor.h"
 
@@ -108,6 +109,10 @@ private:
     Eigen::Vector3d landing_target_pos_;
     Eigen::Vector3d re_takeoff_pos_;
     geometry_msgs::Point origin_point_;
+    std_msgs::Float32 abs_height_msg_;
+    geometry_msgs::PoseStamped refined_goal_pos_;
+    visualization_msgs::Marker refined_goal_marker_; 
+
     bool in_edit_mode_ = false;
     bool landing_sequence_active_ = false;
     bool return_traj_sent_ = false;
@@ -122,7 +127,10 @@ private:
     ros::Subscriber height_change_sub_;
     ros::Publisher origin_pos_pub_;
     ros::Publisher abs_height_pub_;
-    std_msgs::Float32 abs_height_msg_;
+    ros::Subscriber pos_change_sub_;
+    ros::Subscriber yaw_change_sub_;
+    ros::Publisher refined_goal_marker_pub_;
+    
     double traj_target_vel_ = 0.0;
 
     enum LandingSequenceState {
@@ -168,6 +176,10 @@ public:
     void armCallback(const std_msgs::Bool::ConstPtr &msg);
     void printLandingSequenceState();
     void heightChangeCallback(const std_msgs::Float32::ConstPtr &msg);
+    void positionChangeCallback(const geometry_msgs::Point::ConstPtr &msg);
+    void yawChangeCallback(const std_msgs::Float32::ConstPtr &msg);
+    void initGoalMarker();
+    void publishRefinedGoalMarker();
     
 
     template<typename T>

@@ -53,6 +53,14 @@ void PX4CtrlFSM::init(ros::NodeHandle &nh) {
     origin_pos_pub_ = nh.advertise<geometry_msgs::Point>("/origin_pos", 1);
     height_change_sub_ = nh.subscribe("/height_change", 10, &PX4CtrlFSM::heightChangeCallback, this);
     abs_height_pub_ = nh.advertise<std_msgs::Float32>("/abs_height", 1);
+
+    // for convenient operation on drone pos
+    pos_change_sub_ = nh.subscribe("/position_change", 10, &PX4CtrlFSM::positionChangeCallback, this);
+    yaw_change_sub_ = nh.subscribe("/yaw_change", 10, &PX4CtrlFSM::yawChangeCallback, this);
+
+    refined_goal_marker_pub_ = nh.advertise<visualization_msgs::Marker>("/refined_goal_marker", 1);
+
+    initGoalMarker();
 }
 
 void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
@@ -600,12 +608,20 @@ void PX4CtrlFSM::navGoalCallback(const geometry_msgs::PoseStamped::ConstPtr &msg
     if (in_edit_mode_) {
         landing_target_pos_ << msg->pose.position.x, msg->pose.position.y, msg->pose.position.z;
         std::cout << "[PX4 FSM]: Landing target set to [" << landing_target_pos_.transpose() << "]" << std::endl;
+
+        refined_goal_pos_.pose.position.x = landing_target_pos_.x();
+        refined_goal_pos_.pose.position.y = landing_target_pos_.y();
+        refined_goal_pos_.pose.position.z = pos_.z();
+
+        publishRefinedGoalMarker();
     }
 }
 
 void PX4CtrlFSM::handleEditMode() {
     // TODO(zhaohong): yaw will be set to 0.0, need to change it later
     publishPoseSetpoint(hold_pos_, hold_yaw_);
+
+    publishRefinedGoalMarker();
 }
 
 void PX4CtrlFSM::executeAutoLandingSequence() {
@@ -626,7 +642,7 @@ void PX4CtrlFSM::executeAutoLandingSequence() {
                 goal_msg.header.frame_id = "map";
                 goal_msg.pose.position.x = takeoff_pos_.x();
                 goal_msg.pose.position.y = takeoff_pos_.y();
-                goal_msg.pose.position.z = takeoff_pos_.z();
+                // do not set z in case large height diff (cause a star search failure)
                 nav_goal_pub_.publish(goal_msg);
                 return_traj_sent_ = true;
                 std::cout << "[PX4 FSM]: Published takeoff pose to planner." << std::endl;
@@ -641,7 +657,7 @@ void PX4CtrlFSM::executeAutoLandingSequence() {
             if (final_align_started_) {
                 publishPoseSetpoint(takeoff_pos_);  // Precision alignment
                 if (isReachedTarget(takeoff_pos_)) {
-                    landing_sequence_state_ = LAND_AT_TAKEOFF;
+                    landing_sequence_state_ = LAND_AT_TAKEOFF;  // change to TAKEOFF_AGAIN if compass fails
                     sequence_start_time = ros::Time::now();
                     final_align_started_ = false;
                     std::cout << "[PX4 FSM]: Reached takeoff position, preparing to land." << std::endl;
@@ -682,7 +698,8 @@ void PX4CtrlFSM::executeAutoLandingSequence() {
             break;
 
         case LAND_AT_TARGET:
-            hold_pos_ = pos_;
+            hold_pos_ = landing_target_pos_;
+            hold_pos_.z() = pos_.z();  // Lock z to current height
             changeFSMState(SOFT_LAND);
             landing_sequence_active_ = false;
             break;
@@ -717,6 +734,13 @@ void PX4CtrlFSM::heightChangeCallback(const std_msgs::Float32::ConstPtr &msg) {
         // TODO: publish the new z height to the planner
         abs_height_msg_.data = hold_pos_.z() - origin_point_.z;
         abs_height_pub_.publish(abs_height_msg_);
+    } else if (exec_state_ == EDIT) {
+        // In EDIT mode, we can fine-tune the refined_goal_pos_ height
+        //  However, this height is only for visualization, and the landin
+        refined_goal_pos_.pose.position.z += msg->data;
+        // nav_goal_pub_.publish(refined_goal_pos_);
+
+        publishRefinedGoalMarker();
     } else {
         ROS_WARN("[PX4 FSM] Height can only be changed in HOLD mode. Current mode: %s", state_str_[exec_state_].c_str());
     }
@@ -729,4 +753,104 @@ void PX4CtrlFSM::printLandingSequenceState() {
 
 bool PX4CtrlFSM::isReachedTargetHorizontal(const Eigen::Vector3d &target) const {
     return (pos_.head(2) - target.head(2)).norm() <= target_thresh_;
+}
+
+void PX4CtrlFSM::positionChangeCallback(const geometry_msgs::Point::ConstPtr &msg) {
+    if (exec_state_ == HOLD) {
+        double current_yaw = att_.z();
+        
+        // Transform body frame commands to world frame
+        // Body frame: x = forward, y = left, z = up
+        // World frame: x = east, y = north, z = up
+        double cos_yaw = cos(current_yaw);
+        double sin_yaw = sin(current_yaw);
+        
+        Eigen::Vector3d body_cmd(msg->x, msg->y, msg->z);
+        Eigen::Vector3d world_cmd;
+        
+        world_cmd.x() = cos_yaw * body_cmd.x() - sin_yaw * body_cmd.y();
+        world_cmd.y() = sin_yaw * body_cmd.x() + cos_yaw * body_cmd.y();
+        world_cmd.z() = body_cmd.z(); // Z (up) remains the same
+        
+        hold_pos_.x() += world_cmd.x();
+        hold_pos_.y() += world_cmd.y();
+        hold_pos_.z() += world_cmd.z();
+        
+        geoFenceClamp(hold_pos_);
+        
+        std::cout << std::fixed << std::setprecision(2);
+        std::cout << "[PX4 FSM] Body frame command: [" << msg->x << ", " << msg->y << ", " << msg->z << "]" << std::endl;
+        std::cout << "[PX4 FSM] New position: [" << hold_pos_.x() << ", " << hold_pos_.y() << ", " << hold_pos_.z() << "]" << std::endl;
+        
+        // TODO: uncomment and revise this if height change is also realized in this callback
+        //  Currently, height change is only realized in heightChangeCallback
+
+        // Publish updated absolute height
+        // abs_height_msg_.data = hold_pos_.z() - origin_point_.z;
+        // abs_height_pub_.publish(abs_height_msg_);
+    } else if (exec_state_ == EDIT) {
+        // In EDIT mode, we can fine-tune the landing position, sharing the same x and y as refined_goal_pos_
+        refined_goal_pos_.pose.position.x += msg->x;
+        refined_goal_pos_.pose.position.y += msg->y;
+        // nav_goal_pub_.publish(refined_goal_pos_);
+
+        landing_target_pos_.x() = refined_goal_pos_.pose.position.x;
+        landing_target_pos_.y() = refined_goal_pos_.pose.position.y;
+
+        publishRefinedGoalMarker();
+    } else {
+        ROS_WARN("[PX4 FSM] Position can only be changed in HOLD mode. Current mode: %s", state_str_[exec_state_].c_str());
+    }
+}
+
+void PX4CtrlFSM::yawChangeCallback(const std_msgs::Float32::ConstPtr &msg) {
+    if (exec_state_ == HOLD) {
+        float yaw_change_rad = msg->data * deg2rad_;
+
+        hold_yaw_ = att_.z() + yaw_change_rad;
+        
+        // Normalize yaw to [-pi, pi] range (might not be necessary if using quaternion)
+        while (hold_yaw_ > M_PI) hold_yaw_ -= 2.0 * M_PI;
+        while (hold_yaw_ < -M_PI) hold_yaw_ += 2.0 * M_PI;
+        
+        std::cout << "[PX4 FSM] Yaw changed by " << msg->data << " degrees to " 
+                  << hold_yaw_ * 180.0 / M_PI << " degrees" << std::endl;
+    } else {
+        ROS_WARN("[PX4 FSM] Yaw can only be changed in HOLD mode. Current mode: %s", state_str_[exec_state_].c_str());
+    }
+}
+
+void PX4CtrlFSM::initGoalMarker() {
+    // Initialize refined goal marker
+    refined_goal_marker_.header.frame_id = "world";
+    refined_goal_marker_.ns = "landing_target";
+    refined_goal_marker_.id = 0;
+    refined_goal_marker_.type = visualization_msgs::Marker::CYLINDER;
+    refined_goal_marker_.action = visualization_msgs::Marker::ADD;
+    
+    // Set marker scale (cylinder dimensions)
+    refined_goal_marker_.scale.x = 0.5;  // diameter
+    refined_goal_marker_.scale.y = 0.5;  // diameter
+    refined_goal_marker_.scale.z = 0.1;  // height
+    
+    // Set marker color (bright red for visibility)
+    refined_goal_marker_.color.r = 1.0;
+    refined_goal_marker_.color.g = 0.0;
+    refined_goal_marker_.color.b = 0.0;
+    refined_goal_marker_.color.a = 0.8;  // semi-transparent
+    
+    // Set marker orientation (upright cylinder)
+    refined_goal_marker_.pose.orientation.w = 1.0;
+    refined_goal_marker_.pose.orientation.x = 0.0;
+    refined_goal_marker_.pose.orientation.y = 0.0;
+    refined_goal_marker_.pose.orientation.z = 0.0;
+}
+
+void PX4CtrlFSM::publishRefinedGoalMarker() {
+    if (in_edit_mode_ || exec_state_ == SOFT_LAND) {
+        refined_goal_marker_.header.stamp = ros::Time::now();
+        refined_goal_marker_.pose.position = refined_goal_pos_.pose.position;
+        
+        refined_goal_marker_pub_.publish(refined_goal_marker_);
+    }
 }
