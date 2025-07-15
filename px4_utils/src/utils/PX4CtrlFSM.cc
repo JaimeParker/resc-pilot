@@ -136,18 +136,20 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
 
             break;
 
-        case HOLD:
+        case HOLD:{
+            Eigen::Vector3d target_pos(quad_pos_cmd_.position.x, quad_pos_cmd_.position.y, quad_pos_cmd_.position.z);
+            double distance_to_target = (target_pos - pos_).norm();
             // any state that wants to change to hold must redefine hold_pos_
             if (use_rl_ && motion_smooth_ && in_geo_fence_) {
                 changeFSMState(RL_MOTION);
-            } else if (traj_cmd_received_ && in_geo_fence_) {
+            } else if (traj_cmd_received_ && in_geo_fence_ && (distance_to_target > target_thresh_)) {
                 last_traj_cmd_time_ = ros::Time::now();
                 changeFSMState(TRAJ_CMD);
             } else {
                 publishPoseSetpoint(hold_pos_, hold_yaw_);
             }
             break;
-
+        }
         case RL_MOTION:
             // TODO: if check doesn't need this frequency, changing to use a ros timer
             checkAggressiveMotion();
@@ -179,8 +181,8 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
                 changeFSMState(HOLD);
             }
             break;
-
-        case TRAJ_CMD:
+            
+        case TRAJ_CMD:{
             if (!in_geo_fence_) {
                 std::cout << "\033[1;33m[PX4 FSM]: Out of geo fence! Returning.\033[0m" << std::endl;
                 geoFenceClamp(pos_);
@@ -189,23 +191,32 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
                 changeFSMState(HOLD);
                 break;
             }
+            // get the distance to the target
+            Eigen::Vector3d target_pos(quad_pos_cmd_.position.x, quad_pos_cmd_.position.y, quad_pos_cmd_.position.z);
+            double distance_to_target = (target_pos - pos_).norm();
+            printf("[PX4 FSM]: Distance to target: %.2f m\n", distance_to_target);
 
-            if (traj_cmd_received_ && ros::Time::now() - last_traj_cmd_time_ < ros::Duration(traj_cmd_timeout_)) {
+            if ((distance_to_target > target_thresh_/2) && traj_cmd_received_ && ros::Time::now() - last_traj_cmd_time_ < ros::Duration(traj_cmd_timeout_)) {
                 publishTrajSetpoint();
-            } 
-            else {
-                traj_cmd_received_ = false;
-                // if (ros::Time::now() - last_traj_cmd_time_ > ros::Duration(traj_cmd_timeout_)) {
-                //     std::cout << "\033[1;33m[PX4 FSM]: Trajectory command timeout.\033[0m" << std::endl;
-                //     hold_pos_ = pos_;
-                //     changeFSMState(HOLD);
-                // }
-                hold_pos_ = pos_;
-                hold_yaw_ = att_.z();
-                changeFSMState(HOLD);
+            } else {
+                if (distance_to_target < target_thresh_/2) {
+                    traj_cmd_received_ = false;
+                    ROS_INFO_STREAM("[PX4 FSM] traj_cmd_received_ set to false (arrived target)");
+                    hold_pos_ = pos_;
+                    hold_yaw_ = att_.z();
+                    changeFSMState(HOLD);
+                } else {
+                    // not reach the target yet, but planner sent no traj，set traj_cmd_received_ false，wait planner 
+                    traj_cmd_received_ = false;
+                    ROS_INFO_STREAM("[PX4 FSM] traj_cmd_received_ set to false (not arrived, wait planner)");
+                    hold_pos_ = pos_;
+                    hold_yaw_ = att_.z();
+                    changeFSMState(HOLD);
+                }           
             }
 
             break;
+        }
 
         case SOFT_LAND:
             fsmSoftLand();
@@ -354,14 +365,15 @@ void PX4CtrlFSM::trajCmdCallback(const quadrotor_msgs::PositionCommand::ConstPtr
     last_traj_cmd_time_ = ros::Time::now();
     quad_pos_cmd_ = *msg;
 
-    traj_target_vel_ = std::sqrt(
-        quad_pos_cmd_.velocity.x * quad_pos_cmd_.velocity.x +
-        quad_pos_cmd_.velocity.y * quad_pos_cmd_.velocity.y +
-        quad_pos_cmd_.velocity.z * quad_pos_cmd_.velocity.z);
+    // traj_target_vel_ = std::sqrt(
+    //     quad_pos_cmd_.velocity.x * quad_pos_cmd_.velocity.x +
+    //     quad_pos_cmd_.velocity.y * quad_pos_cmd_.velocity.y +
+    //     quad_pos_cmd_.velocity.z * quad_pos_cmd_.velocity.z);
 
-    if (traj_target_vel_ < 0.01) {
-        traj_cmd_received_ = false;
-    }
+    // if (traj_target_vel_ < 0.01) {
+    //     traj_cmd_received_ = false;
+    //     ROS_INFO_STREAM("[PX4 FSM] traj_cmd_received_ set to false2");
+    // }
 }
 
 void PX4CtrlFSM::landCmdCallback(const std_msgs::Bool::ConstPtr &msg) {
