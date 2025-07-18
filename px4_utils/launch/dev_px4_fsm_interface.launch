@@ -1,0 +1,14 @@
+<launch>
+    <node pkg="px4_utils" type="px4_ctrl_fsm_node" name="px4_ctrl_fsm" output="screen">
+        <param name="px4fsm/exec_period" value="0.01" type="double"/>
+        <param name="px4fsm/cruise_height" value="2.0" type="double"/>
+        <param name="px4fsm/fence_x" value="20.0" type="double"/>
+        <param name="px4fsm/fence_y" value="20.0" type="double"/>
+        <param name="px4fsm/fence_z" value="10.0" type="double"/>
+        <param name="px4fsm/land_cmd_topic" value="/trigger_landing" />
+    </node>
+
+    <node pkg="px4_utils" type="px4_fsm_interface_node" name="px4_fsm_interface" output="screen">
+        <param name="land_topic" value="/trigger_landing" />
+    </node>
+</launch>
