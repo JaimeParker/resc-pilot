@@ -21,6 +21,7 @@
 
 #include "px4_utils/Convertor.h"
 
+#include "px4_utils/vision_orb.h"
 class PX4CtrlFSM {
 private:
     /* flags */
@@ -143,6 +144,10 @@ private:
     std::string landing_state_str_[5] = {"RETURN_TO_TAKEOFF", "LAND_AT_TAKEOFF", "TAKEOFF_AGAIN", "MOVE_TO_TARGET", "LAND_AT_TARGET"};
     LandingSequenceState landing_sequence_state_ = RETURN_TO_TAKEOFF;
 
+    /* to init VisionORB */
+    ros::NodeHandle nh_;  
+    // std::unique_ptr<px4_utils::VisionORB> vision_orb_; //?? from GPT
+
 public:
     void init(ros::NodeHandle &nh);
     void execCallback(const ros::TimerEvent& /* event */);
@@ -181,6 +186,10 @@ public:
     void initGoalMarker();
     void publishRefinedGoalMarker();
     
+    //zhiyuan:z (actual height) and f (focal length)
+    //TODO: go to PX4CtrlFSM.cc and set these values
+    static float z;
+    static float f;
 
     template<typename T>
     void getParamWithWarning(ros::NodeHandle& nh, const std::string& param_name, T& param) {

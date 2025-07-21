@@ -3,6 +3,10 @@
 //
 
 #include "px4_utils/PX4CtrlFSM.h"
+#include "px4_utils/vision_orb.h"
+
+float PX4CtrlFSM::z = 10.0;
+float PX4CtrlFSM::f = 2.0 * 1e-3;
 
 void PX4CtrlFSM::init(ros::NodeHandle &nh) {
     getParamWithWarning(nh, "px4fsm/target_thresh", target_thresh_);
@@ -60,6 +64,10 @@ void PX4CtrlFSM::init(ros::NodeHandle &nh) {
 
     refined_goal_marker_pub_ = nh.advertise<visualization_msgs::Marker>("/refined_goal_marker", 1);
 
+    //zhiyuan:get VisionORB
+    nh_ = nh;
+    // vision_orb_ = std::make_unique<px4_utils::VisionORB>(nh_, "/camera/rgb/image_raw");  //?? from GPT
+    
     initGoalMarker();
 }
 
@@ -219,6 +227,20 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
         }
 
         case SOFT_LAND:
+            //TODO(zhiyuan 7_16):create a state & write the alignment logic
+            static std::shared_ptr<px4_utils::VisionORB> vision_orb_;
+            if (!vision_orb_) {
+                vision_orb_ = std::make_shared<px4_utils::VisionORB>(nh_, "/camera/rgb/image_raw");
+            }
+            
+            if (vision_orb_ && vision_orb_->isTargetMatched()) {
+                cv::Point2f centroid_2d = vision_orb_->getTargetCentroid();
+                Eigen::Vector3d centroid(centroid_2d.x, centroid_2d.y, 0.0); 
+                std::cout << "[PX4 FSM]: Target offset: " << vision_orb_->getOffset().x << ", " << vision_orb_->getOffset().y << std::endl;
+            } else {
+                std::cout << "[PX4 FSM]: No object detected." << std::endl;
+            }
+
             fsmSoftLand();
             break;
 

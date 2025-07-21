@@ -3,14 +3,25 @@ project(px4_utils)
 
 add_compile_options(-std=c++14)
 
-find_package(Eigen3 REQUIRED)
-
+##zhiyuan: build cv_bridge and image_transport
+find_package(Eigen3 REQUIRED
+        Opencv REQUIRED
+)
 find_package(catkin REQUIRED COMPONENTS
         mavros_msgs
         roscpp
         rospy
         std_msgs
         quadrotor_msgs
+        cv_bridge
+        image_transport 
+        sensor_msgs
+)
+find_package(OpenCV REQUIRED COMPONENTS
+        core
+        imgproc
+        features2d
+        highgui
 )
 
 catkin_package(
@@ -23,6 +34,7 @@ include_directories(
         include
         ${catkin_INCLUDE_DIRS}
         ${EIGEN3_INCLUDE_DIRS}
+        ${OpenCV_INCLUDE_DIRS}
 )
 
 add_library(${PROJECT_NAME} SHARED
@@ -36,10 +48,13 @@ add_library(${PROJECT_NAME} SHARED
         include/px4_utils/Filter.h
         src/utils/PX4CtrlFSM.cc
         include/px4_utils/PX4CtrlFSM.h
+        src/utils/vision_orb.cc
+        include/px4_utils/vision_orb.h
 )
 target_link_libraries(${PROJECT_NAME}
         ${catkin_LIBRARIES}
         ${EIGEN3_LIBRARIES}
+        ${OpenCV_LIBRARIES}
 )
 
 
@@ -63,6 +78,10 @@ target_link_libraries(land_command_publisher_node ${catkin_LIBRARIES})
 
 add_executable(px4_fsm_interface_node src/px4_fsm_interface.cc)
 target_link_libraries(px4_fsm_interface_node ${catkin_LIBRARIES})
+
+##zhiyuan: add test executables
+# add_executable(vision_node src/utils/vision_orb.cc)
+# target_link_libraries(vision_node ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
 
 # test
 add_executable(test_mocap_process example/test_mocap.cc src/motion_capture/MocapProcessor.cc)
