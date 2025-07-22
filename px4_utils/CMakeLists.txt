@@ -48,8 +48,8 @@ add_library(${PROJECT_NAME} SHARED
         include/px4_utils/Filter.h
         src/utils/PX4CtrlFSM.cc
         include/px4_utils/PX4CtrlFSM.h
-        src/utils/vision_orb.cc
-        include/px4_utils/vision_orb.h
+        src/utils/ImgMatching.cc
+        include/px4_utils/ImgMatching.h
 )
 target_link_libraries(${PROJECT_NAME}
         ${catkin_LIBRARIES}

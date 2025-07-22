@@ -21,7 +21,7 @@
 
 #include "px4_utils/Convertor.h"
 
-#include "px4_utils/vision_orb.h"
+#include "px4_utils/ImgMatching.h"
 class PX4CtrlFSM {
 private:
     /* flags */
@@ -144,9 +144,9 @@ private:
     std::string landing_state_str_[5] = {"RETURN_TO_TAKEOFF", "LAND_AT_TAKEOFF", "TAKEOFF_AGAIN", "MOVE_TO_TARGET", "LAND_AT_TARGET"};
     LandingSequenceState landing_sequence_state_ = RETURN_TO_TAKEOFF;
 
-    /* to init VisionORB */
+    /* to init Imgmatching */
     ros::NodeHandle nh_;  
-    // std::unique_ptr<px4_utils::VisionORB> vision_orb_; //?? from GPT
+    std::unique_ptr<px4_utils::Imgmatching> vision_orb_; 
 
 public:
     void init(ros::NodeHandle &nh);
@@ -188,8 +188,9 @@ public:
     
     //zhiyuan:z (actual height) and f (focal length)
     //TODO: go to PX4CtrlFSM.cc and set these values
-    static float z;
-    static float f;
+    static float z_;
+    static float fx_;
+    static float fy_;
 
     template<typename T>
     void getParamWithWarning(ros::NodeHandle& nh, const std::string& param_name, T& param) {

@@ -1,9 +1,9 @@
-#include "px4_utils/vision_orb.h"
+#include "px4_utils/ImgMatching.h"
 #include "px4_utils/PX4CtrlFSM.h"
 
 namespace px4_utils {
 
-VisionORB::VisionORB(ros::NodeHandle& nh, const std::string& image_topic)
+Imgmatching::Imgmatching(ros::NodeHandle& nh, const std::string& image_topic)
     : it_(nh), matcher_(cv::NORM_HAMMING), matched_(false) {
 
     // (zhiyuan):ORB is not scale invariant, so requires to create manual pyramid 
@@ -11,14 +11,15 @@ VisionORB::VisionORB(ros::NodeHandle& nh, const std::string& image_topic)
     orb_ = cv::AKAZE::create(); 
 
     // TODO:(zhiyuan)replace with a parameter to load the target image and change the path
-    std::string target_path = "zhiyuan-yang/catkin_ws/src/resc-pilot/target.png";
+    std::string ROS_path = ros::package::getPath("px4_utils");
+    std::string target_path = ROS_path + "/../target.png";
     loadTargetImage(target_path);
 
-    image_sub_ = it_.subscribe(image_topic, 1, &VisionORB::imageCallback, this);
-    ROS_INFO_STREAM("VisionORB subscribed to: " << image_topic);
+    image_sub_ = it_.subscribe(image_topic, 1, &Imgmatching::imageCallback, this);
+    ROS_INFO_STREAM("Imgmatching subscribed to: " << image_topic);
 }
 
-void VisionORB::loadTargetImage(const std::string& path) {
+void Imgmatching::loadTargetImage(const std::string& path) {
     target_image_ = cv::imread(path, cv::IMREAD_GRAYSCALE);
     if (target_image_.empty()) {
         ROS_ERROR_STREAM("Failed to load target image: " << path);
@@ -28,7 +29,7 @@ void VisionORB::loadTargetImage(const std::string& path) {
     ROS_INFO_STREAM("Loaded target image with " << target_kps_.size() << " keypoints.");
 }
 
-void VisionORB::imageCallback(const sensor_msgs::ImageConstPtr& msg) {
+void Imgmatching::imageCallback(const sensor_msgs::ImageConstPtr& msg) {
     matched_ = false;
 
     try {
@@ -64,15 +65,25 @@ void VisionORB::imageCallback(const sensor_msgs::ImageConstPtr& msg) {
         ROS_INFO_STREAM("RANSAC inliers: " << inlier_matches.size());
         if (inlier_pts.size() < 4) return;
 
-        cv::Point2f sum(0, 0);
-        for (const auto& pt : inlier_pts) {
-            sum += pt;
-        }
-        centroid_.x = sum.x / inlier_pts.size();
-        centroid_.y = sum.y / inlier_pts.size();
-        
-        cv::Point2f center_(static_cast<float>(gray.cols) / 2.0f, static_cast<float>(gray.rows) / 2.0f);
-        offset_ = centroid_ - center_;
+        //TODO:Calculate centroid_ with H matrix
+        //TODO:change this by real target
+        cv::Point2f target_point(247, 141);
+
+        cv::Mat target_point_H = cv::Mat::ones(3, 1, CV_64F);
+        target_point_H.at<double>(0, 0) = target_point.x;
+        target_point_H.at<double>(1, 0) = target_point.y;
+
+        cv::Mat frame_point_H = H * target_point_H;
+
+        double w = frame_point_H.at<double>(2, 0);
+        cv::Point2f centroid_(
+            frame_point_H.at<double>(0, 0) / w,
+            frame_point_H.at<double>(1, 0) / w
+        );
+        //
+
+        cv::Point2f center(static_cast<float>(gray.cols) / 2.0f, static_cast<float>(gray.rows) / 2.0f);
+        offset_ = centroid_ - center;
 
         if (first_frame_) {
             last_centroid_ = centroid_;
@@ -104,17 +115,17 @@ void VisionORB::imageCallback(const sensor_msgs::ImageConstPtr& msg) {
     }
 }
 
-bool VisionORB::isTargetMatched() const {
+bool Imgmatching::isTargetMatched() const {
     return matched_;
 }
 
-cv::Point2f VisionORB::getTargetCentroid() const {
+cv::Point2f Imgmatching::getTargetCentroid() const {
     return centroid_;
 }
 
-cv::Point2f VisionORB::getOffset() const {
+cv::Point2f Imgmatching::getOffset() const {
     //(zhiyuan) convert pixel offset to real-world offset using z and f
-    return cv::Point2f(offset_.x * PX4CtrlFSM::z / PX4CtrlFSM::f, offset_.y * PX4CtrlFSM::z / PX4CtrlFSM::f);
+    return cv::Point2f(offset_.x * PX4CtrlFSM::z_ / PX4CtrlFSM::fx_, offset_.y * PX4CtrlFSM::z_ / PX4CtrlFSM::fy_);
 }
 
 } // namespace rese_pilot
