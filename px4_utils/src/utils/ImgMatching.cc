@@ -1,5 +1,4 @@
 #include "px4_utils/ImgMatching.h"
-#include "px4_utils/PX4CtrlFSM.h"
 
 namespace px4_utils {
 
@@ -125,7 +124,14 @@ cv::Point2f Imgmatching::getTargetCentroid() const {
 
 cv::Point2f Imgmatching::getOffset() const {
     //(zhiyuan) convert pixel offset to real-world offset using z and f
-    return cv::Point2f(offset_.x * PX4CtrlFSM::z_ / PX4CtrlFSM::fx_, offset_.y * PX4CtrlFSM::z_ / PX4CtrlFSM::fy_);
+    return cv::Point2f(offset_.x * z_ / fx_, offset_.y * z_ / fy_);
 }
 
-} // namespace rese_pilot
+void Imgmatching::setCameraParams(float fx, float fy, float z) {
+    fx_ = fx;
+    fy_ = fy;
+    z_ = z;
+    ROS_INFO_STREAM("Camera parameters set: fx=" << fx_ << ", fy=" << fy_ << ", z=" << z_);
+}
+
+} // namespace px4_utils

@@ -3,11 +3,6 @@
 //
 
 #include "px4_utils/PX4CtrlFSM.h"
-#include "px4_utils/ImgMatching.h"
-
-float PX4CtrlFSM::z_ = 10.0;
-float PX4CtrlFSM::fx_ = 562.94;
-float PX4CtrlFSM::fy_ = 422.21;
 
 void PX4CtrlFSM::init(ros::NodeHandle &nh) {
     getParamWithWarning(nh, "px4fsm/target_thresh", target_thresh_);
@@ -228,15 +223,17 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
 
         case SOFT_LAND:
             //TODO(zhiyuan 7_16):create a state & write the alignment logic
-            if (!vision_orb_) {
-                vision_orb_ = std::make_unique<px4_utils::Imgmatching>(nh_, "/camera/rgb/image_raw");
+            if (!image_matcher_) {
+                image_matcher_ = std::make_unique<px4_utils::Imgmatching>(nh_, downward_camera_topic_);
+                // TODO(zhaohong): u can add image_matcher_.setCameraParams(fx, fy, z) here
+                //  or publish them in a ros param server
             }
 
-            if (vision_orb_ && vision_orb_->isTargetMatched()) {
-                cv::Point2f centroid_2d = vision_orb_->getTargetCentroid();
+            if (image_matcher_ && image_matcher_->isTargetMatched()) {
+                cv::Point2f centroid_2d = image_matcher_->getTargetCentroid();
                 Eigen::Vector3d centroid(centroid_2d.x, centroid_2d.y, 0.0); 
-                std::cout << "[PX4 FSM]: Target offset: " << vision_orb_->getOffset().x << ", " << vision_orb_->getOffset().y << std::endl;
-           
+                std::cout << "[PX4 FSM]: Target offset: " << image_matcher_->getOffset().x << ", " << image_matcher_->getOffset().y << std::endl;
+            
             } else {
                 std::cout << "[PX4 FSM]: No object detected." << std::endl;
             }

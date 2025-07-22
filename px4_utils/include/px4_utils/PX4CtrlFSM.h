@@ -20,8 +20,8 @@
 #include <visualization_msgs/Marker.h>
 
 #include "px4_utils/Convertor.h"
-
 #include "px4_utils/ImgMatching.h"
+
 class PX4CtrlFSM {
 private:
     /* flags */
@@ -145,8 +145,9 @@ private:
     LandingSequenceState landing_sequence_state_ = RETURN_TO_TAKEOFF;
 
     /* to init Imgmatching */
+    std::string downward_camera_topic_ = "/camera/rgb/image_raw";
     ros::NodeHandle nh_;  
-    std::unique_ptr<px4_utils::Imgmatching> vision_orb_; 
+    std::unique_ptr<px4_utils::Imgmatching> image_matcher_; 
 
 public:
     void init(ros::NodeHandle &nh);
