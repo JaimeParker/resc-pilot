@@ -1,5 +1,5 @@
-#ifndef RESE_PILOT_VISION_ORB_H
-#define RESE_PILOT_VISION_ORB_H
+#ifndef RESC_PILOT_IMAGE_MATCHING_H
+#define RESC_PILOT_IMAGE_MATCHING_H
 
 #include <ros/ros.h>
 #include <ros/package.h>
@@ -15,38 +15,34 @@
 
 namespace px4_utils {
 
-class VisionORB {
+class Imgmatching {
 public:
-    VisionORB(ros::NodeHandle& nh, const std::string& image_topic = "/camera/rgb/image_raw");
+    Imgmatching(ros::NodeHandle& nh, const std::string& image_topic = "/camera/rgb/image_raw");
 
     bool isTargetMatched() const;
+    bool first_frame_ = true;
     cv::Point2f getTargetCentroid() const;
     cv::Point2f getOffset() const;
-    bool first_frame_ = true;
     cv::Point2f last_centroid_;
+    cv::Point2f offset_;  // pixel plant
     float filter_alpha_ = 0.3f; // for centroid filtering
-    cv::Point2f offset_;  // pixel
-    
+
 private:
     void imageCallback(const sensor_msgs::ImageConstPtr& msg);
     void loadTargetImage(const std::string& path);
-
     image_transport::ImageTransport it_;
     image_transport::Subscriber image_sub_;
-
     cv::Mat target_image_;
-    std::vector<cv::KeyPoint> target_kps_;
     cv::Mat target_desc_;
+    cv::Point2f centroid_;
+    std::vector<cv::KeyPoint> target_kps_;
 
     // Choose AKAZE/ORB for feature matching
     cv::Ptr<cv::AKAZE> orb_;
     cv::BFMatcher matcher_;
-
     bool matched_;
-    cv::Point2f centroid_;
-    
 };
 
-} // namespace rese_pilot
+} // namespace resc_pilot
 
-#endif // RESE_PILOT_VISION_ORB_H
+#endif // RESC_PILOT_IMAGE_MATCHING_H
