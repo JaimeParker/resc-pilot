@@ -186,6 +186,7 @@ public:
     void yawChangeCallback(const std_msgs::Float32::ConstPtr &msg);
     void initGoalMarker();
     void publishRefinedGoalMarker();
+    Eigen::Vector3d adjustPositionWithPIControl(const cv::Point2f& offset);
     
     //zhiyuan:z (actual height) and f (focal length)
     //TODO: go to PX4CtrlFSM.cc and set these values

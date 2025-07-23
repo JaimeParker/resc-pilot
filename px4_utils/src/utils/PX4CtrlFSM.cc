@@ -229,16 +229,6 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
                 //  or publish them in a ros param server
             }
 
-            if (image_matcher_ && image_matcher_->isTargetMatched()) {
-                cv::Point2f centroid_2d = image_matcher_->getTargetCentroid();
-                Eigen::Vector3d centroid(centroid_2d.x, centroid_2d.y, 0.0); 
-                std::cout << "[PX4 FSM]: Target offset: " << image_matcher_->getOffset().x << ", " << image_matcher_->getOffset().y << std::endl;
-            
-            } else {
-                std::cout << "[PX4 FSM]: No object detected." << std::endl;
-            }
-
-
             fsmSoftLand();
             break;
 
@@ -480,6 +470,17 @@ void PX4CtrlFSM::fsmSoftLand() {
         near_ground = false;
         std::cout << "[PX4 FSM]: Soft landing initialized at [" << hold_pos_.x() << ", "
                   << hold_pos_.y() << ", " << hold_pos_.z() << "]" << std::endl;
+    }
+
+    if (image_matcher_ && image_matcher_->isTargetMatched()) {
+        cv::Point2f centroid_2d = image_matcher_->getTargetCentroid();
+        Eigen::Vector3d centroid(centroid_2d.x, centroid_2d.y, 0.0); 
+        std::cout << "[PX4 FSM]: Target offset: " << image_matcher_->getOffset().x << ", " << image_matcher_->getOffset().y << std::endl;
+
+        hold_pos_ = adjustPositionWithPIControl(image_matcher_->getOffset());
+
+    } else {
+        std::cout << "[PX4 FSM]: No object detected." << std::endl;
     }
 
     // Gradually descend
@@ -885,4 +886,68 @@ void PX4CtrlFSM::publishRefinedGoalMarker() {
         
         refined_goal_marker_pub_.publish(refined_goal_marker_);
     }
+}
+
+Eigen::Vector3d PX4CtrlFSM::adjustPositionWithPIControl(const cv::Point2f& offset) {
+    static bool pi_initialized = false;
+    static Eigen::Vector2d integral_error(0.0, 0.0);
+    static ros::Time last_update_time;
+    
+    const double kp = 0.1;  // Proportional gain
+    const double ki = 0.01; // Integral gain
+    const double max_integral = 1.0; // Anti-windup limit
+    const double max_correction = 0.5; // Maximum position correction per cycle
+    
+    if (!pi_initialized) {
+        last_update_time = ros::Time::now();
+        integral_error.setZero();
+        pi_initialized = true;
+        return hold_pos_;
+    }
+    
+    ros::Time current_time = ros::Time::now();
+    double dt = (current_time - last_update_time).toSec();
+    last_update_time = current_time;
+    
+    // Convert pixel offset to normalized error (assuming offset is in pixels)
+    // Positive x offset means target is to the right, drone should move right (positive y in body frame)
+    // Positive y offset means target is below center, drone should move forward (positive x in body frame)
+    Eigen::Vector2d error;
+    error.x() = -offset.y; // Forward/backward error (body frame x)
+    error.y() = offset.x;  // Left/right error (body frame y)
+    
+    // TODO(zhaohong): choose a way to rescale the error to meters
+    double pixel_to_meter_scale = 0.001; // meters per pixel (tune this)
+    error *= pixel_to_meter_scale;
+    // error *= z_ / fx_;
+    
+    integral_error += error * dt;
+    integral_error.x() = std::max(-max_integral, std::min(max_integral, integral_error.x()));
+    integral_error.y() = std::max(-max_integral, std::min(max_integral, integral_error.y()));
+    
+    Eigen::Vector2d body_correction = kp * error + ki * integral_error;
+    
+    // Limit correction magnitude
+    double correction_magnitude = body_correction.norm();
+    if (correction_magnitude > max_correction) {
+        body_correction = body_correction * (max_correction / correction_magnitude);
+    }
+    
+    // Transform body frame correction to world frame
+    double current_yaw = att_.z();
+    double cos_yaw = cos(current_yaw);
+    double sin_yaw = sin(current_yaw);
+    
+    Eigen::Vector2d world_correction;
+    world_correction.x() = cos_yaw * body_correction.x() - sin_yaw * body_correction.y();
+    world_correction.y() = sin_yaw * body_correction.x() + cos_yaw * body_correction.y();
+    
+    // TODO(zhaohong): or using pos_ here due to time delay?
+    Eigen::Vector3d corrected_pos = hold_pos_;
+    corrected_pos.x() += world_correction.x();
+    corrected_pos.y() += world_correction.y();
+    
+    geoFenceClamp(corrected_pos);
+    
+    return corrected_pos;
 }
