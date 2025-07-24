@@ -66,7 +66,7 @@ void Imgmatching::imageCallback(const sensor_msgs::ImageConstPtr& msg) {
 
         //TODO:Calculate centroid_ with H matrix
         //TODO:change this by real target
-        cv::Point2f target_point(247, 141);
+        cv::Point2f target_point(435, 514);
 
         cv::Mat target_point_H = cv::Mat::ones(3, 1, CV_64F);
         target_point_H.at<double>(0, 0) = target_point.x;
@@ -124,7 +124,7 @@ cv::Point2f Imgmatching::getTargetCentroid() const {
 
 cv::Point2f Imgmatching::getOffset() const {
     //(zhiyuan) convert pixel offset to real-world offset using z and f
-    return cv::Point2f(offset_.x * z_ / fx_, offset_.y * z_ / fy_);
+    return cv::Point2f(offset_.x  / fx_, offset_.y  / fy_);
 }
 
 void Imgmatching::setCameraParams(float fx, float fy, float z) {

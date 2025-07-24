@@ -32,10 +32,6 @@ private:
     cv::Point2f offset_;  // pixel plant
     float filter_alpha_ = 0.3f; // for centroid filtering
 
-    float fx_ = 562.94; // focal length in x
-    float fy_ = 422.21; // focal length in y
-    float z_ = 10.0;
-
     void imageCallback(const sensor_msgs::ImageConstPtr& msg);
     void loadTargetImage(const std::string& path);
 
@@ -46,6 +42,12 @@ public:
     cv::Point2f getTargetCentroid() const;
     cv::Point2f getOffset() const;
     void setCameraParams(float fx, float fy, float z);
+
+
+    float fx_ = 562.94; // focal length in x
+    float fy_ = 422.21; // focal length in y
+    float land_pos_z_ = 3.0f; // z position of landing target
+    float z_ ; 
 };
 
 } // namespace px4_utils
