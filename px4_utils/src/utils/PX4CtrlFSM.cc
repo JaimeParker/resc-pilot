@@ -4,6 +4,8 @@
 
 #include "px4_utils/PX4CtrlFSM.h"
 
+
+
 void PX4CtrlFSM::init(ros::NodeHandle &nh) {
     getParamWithWarning(nh, "px4fsm/target_thresh", target_thresh_);
     getParamWithWarning(nh, "px4fsm/exec_period", exec_period_);
@@ -62,7 +64,6 @@ void PX4CtrlFSM::init(ros::NodeHandle &nh) {
 
     //zhiyuan:get Imgmatching
     nh_ = nh;
-    
     initGoalMarker();
 }
 
@@ -229,7 +230,7 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
                 //  or publish them in a ros param server
             }
 
-            fsmSoftLand();
+            fsmVisionLand();
             break;
 
         case AUTO_LAND:
@@ -472,17 +473,6 @@ void PX4CtrlFSM::fsmSoftLand() {
                   << hold_pos_.y() << ", " << hold_pos_.z() << "]" << std::endl;
     }
 
-    if (image_matcher_ && image_matcher_->isTargetMatched()) {
-        cv::Point2f centroid_2d = image_matcher_->getTargetCentroid();
-        Eigen::Vector3d centroid(centroid_2d.x, centroid_2d.y, 0.0); 
-        std::cout << "[PX4 FSM]: Target offset: " << image_matcher_->getOffset().x << ", " << image_matcher_->getOffset().y << std::endl;
-
-        hold_pos_ = adjustPositionWithPIControl(image_matcher_->getOffset());
-
-    } else {
-        std::cout << "[PX4 FSM]: No object detected." << std::endl;
-    }
-
     // Gradually descend
     hold_pos_.z() -= 0.005;
 
@@ -499,6 +489,57 @@ void PX4CtrlFSM::fsmSoftLand() {
     // Safety timeout
     if ((ros::Time::now() - land_start_time).toSec() > soft_landing_timeout_) {
         std::cout << "[PX4 FSM]: Soft landing timeout. Switching to AUTO.LAND." << std::endl;
+        land_initialized = false;
+        changeFSMState(AUTO_LAND);
+    }
+}
+
+void PX4CtrlFSM::fsmVisionLand() {
+    // Initialize target only once
+    static bool land_initialized = false;
+    static ros::Time land_start_time;
+    static bool near_ground = false;
+    static ros::Time ground_detect_time;
+
+    if (!land_initialized) {
+        hold_pos_ = pos_;  // Lock x, y
+        land_start_time = ros::Time::now();
+        land_initialized = true;
+        near_ground = false;
+        std::cout << "[PX4 FSM]: Soft landing initialized at [" << hold_pos_.x() << ", "
+                  << hold_pos_.y() << ", " << hold_pos_.z() << "]" << std::endl;
+    }
+
+    if (image_matcher_ && image_matcher_->isTargetMatched()) {
+        cv::Point2f centroid_2d = image_matcher_->getTargetCentroid();
+        Eigen::Vector3d centroid(centroid_2d.x, centroid_2d.y, 0.0); 
+        std::cout << "[PX4 FSM]: Target offset: " 
+            << image_matcher_->getOffset().x * (hold_pos_.z() - image_matcher_->land_pos_z_) << ", " 
+            << image_matcher_->getOffset().y * (hold_pos_.z() - image_matcher_->land_pos_z_) << std::endl;
+
+        hold_pos_ = adjustPositionWithPIControl(image_matcher_->getOffset()* (hold_pos_.z() - image_matcher_->land_pos_z_));
+
+    } else {
+        std::cout << "[PX4 FSM]: No object detected." << std::endl;
+    }
+
+    // Gradually descend
+    hold_pos_.z() -= 0.005;
+    std::cout << "[PX4 FSM]: Current hold position: " << hold_pos_.z() << std::endl;
+    publishPoseSetpoint(hold_pos_);
+
+    // Check PX4's internal land detection
+    if (extended_state_.landed_state == mavros_msgs::ExtendedState::LANDED_STATE_ON_GROUND) {
+        std::cout << "[PX4 FSM]: Landed detected by PX4. Switching to LANDED." << std::endl;
+        land_initialized = false;
+        changeFSMState(LANDED);
+        return;
+    }
+
+    // zhiyuan: need actual value of z_
+    // u can use a threshold like 0.3 m (depend on camera) to determine if the drone is near the target
+    if ((hold_pos_.z() - image_matcher_->land_pos_z_) < 1) {
+        std::cout << "[PX4 FSM]: Vision becomes blurry. Switching to AUTO.LAND." << std::endl;
         land_initialized = false;
         changeFSMState(AUTO_LAND);
     }
@@ -893,11 +934,12 @@ Eigen::Vector3d PX4CtrlFSM::adjustPositionWithPIControl(const cv::Point2f& offse
     static Eigen::Vector2d integral_error(0.0, 0.0);
     static ros::Time last_update_time;
     
-    const double kp = 0.1;  // Proportional gain
-    const double ki = 0.01; // Integral gain
+    const double kp = 0.02;  // Proportional gain
+    const double ki = 0.0001; // Integral gain
     const double max_integral = 1.0; // Anti-windup limit
     const double max_correction = 0.5; // Maximum position correction per cycle
     
+
     if (!pi_initialized) {
         last_update_time = ros::Time::now();
         integral_error.setZero();
@@ -914,12 +956,8 @@ Eigen::Vector3d PX4CtrlFSM::adjustPositionWithPIControl(const cv::Point2f& offse
     // Positive y offset means target is below center, drone should move forward (positive x in body frame)
     Eigen::Vector2d error;
     error.x() = -offset.y; // Forward/backward error (body frame x)
-    error.y() = offset.x;  // Left/right error (body frame y)
+    error.y() = -offset.x;  // Left/right error (body frame y)
     
-    // TODO(zhaohong): choose a way to rescale the error to meters
-    double pixel_to_meter_scale = 0.001; // meters per pixel (tune this)
-    error *= pixel_to_meter_scale;
-    // error *= z_ / fx_;
     
     integral_error += error * dt;
     integral_error.x() = std::max(-max_integral, std::min(max_integral, integral_error.x()));
