@@ -5,11 +5,13 @@ A search-to-control reinforcement learning (RL) based motion planning framework 
 * ros packages
 * shared libs
 
-The code will be open-sourced once the paper is published and the refactoring work is complete.
-
 **News**:
 
 * **Jan 22, 2025**: 3rd edition preprint paper on [arXiv](https://arxiv.org/abs/2408.00275).
+* **June 28, 2025**: accepted by IEEE Robotics and Automation Letters (RA-L)
+* **July 23, 2025**: published in IEEE RA-L, available on [IEEE Xplore](https://ieeexplore.ieee.org/document/11091396).
+
+Working on the code refactoring recently, the code will be open-sourced soon.
 
 ## Table of Contents
 
