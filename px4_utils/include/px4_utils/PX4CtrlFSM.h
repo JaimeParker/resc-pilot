@@ -189,11 +189,6 @@ public:
     void publishRefinedGoalMarker();
     Eigen::Vector3d adjustPositionWithPIControl(const cv::Point2f& offset);
     
-    // //zhiyuan:z (actual height) and f (focal length)
-    // //TODO: go to PX4CtrlFSM.cc and set these values
-    // static float land_pos_z_ ;
-    // static float fx_;
-    // static float fy_;
 
     template<typename T>
     void getParamWithWarning(ros::NodeHandle& nh, const std::string& param_name, T& param) {

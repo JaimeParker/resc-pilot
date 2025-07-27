@@ -11,7 +11,7 @@ Imgmatching::Imgmatching(ros::NodeHandle& nh, const std::string& image_topic)
 
     // TODO:(zhiyuan)replace with a parameter to load the target image and change the path
     std::string ROS_path = ros::package::getPath("px4_utils");
-    std::string target_path = ROS_path + "/../target.png";
+    target_path = ROS_path + "/../target.png";
     loadTargetImage(target_path);
 
     image_sub_ = it_.subscribe(image_topic, 1, &Imgmatching::imageCallback, this);
@@ -24,6 +24,10 @@ void Imgmatching::loadTargetImage(const std::string& path) {
         ROS_ERROR_STREAM("Failed to load target image: " << path);
         return;
     }
+    //TODO:Calculate centroid_ with H matrix
+    //TODO:change this by real target
+    // cv::Point2f target_point(435, 514);
+    target_point_ = chooseTargetPoint(); 
     orb_->detectAndCompute(target_image_, cv::noArray(), target_kps_, target_desc_);
     ROS_INFO_STREAM("Loaded target image with " << target_kps_.size() << " keypoints.");
 }
@@ -64,13 +68,9 @@ void Imgmatching::imageCallback(const sensor_msgs::ImageConstPtr& msg) {
         ROS_INFO_STREAM("RANSAC inliers: " << inlier_matches.size());
         if (inlier_pts.size() < 4) return;
 
-        //TODO:Calculate centroid_ with H matrix
-        //TODO:change this by real target
-        cv::Point2f target_point(435, 514);
-
         cv::Mat target_point_H = cv::Mat::ones(3, 1, CV_64F);
-        target_point_H.at<double>(0, 0) = target_point.x;
-        target_point_H.at<double>(1, 0) = target_point.y;
+        target_point_H.at<double>(0, 0) = target_point_.x;
+        target_point_H.at<double>(1, 0) = target_point_.y;
 
         cv::Mat frame_point_H = H * target_point_H;
 
@@ -82,6 +82,11 @@ void Imgmatching::imageCallback(const sensor_msgs::ImageConstPtr& msg) {
         //
 
         cv::Point2f center(static_cast<float>(gray.cols) / 2.0f, static_cast<float>(gray.rows) / 2.0f);
+
+        // get hold_pos_.z() from PX4CtrlFSM
+        center.x += 0.1 * fx_ / (z_value - land_pos_z_);
+        center.y += 0.1 * fy_ / (z_value - land_pos_z_);
+        
         offset_ = centroid_ - center;
 
         if (first_frame_) {
@@ -133,5 +138,56 @@ void Imgmatching::setCameraParams(float fx, float fy, float z) {
     z_ = z;
     ROS_INFO_STREAM("Camera parameters set: fx=" << fx_ << ", fy=" << fy_ << ", z=" << z_);
 }
+
+void Imgmatching::setHoldPos(float pos) {
+    z_value = pos;
+}
+
+// zhiyuan: get target_point_ by mouse click
+cv::Point2f Imgmatching::chooseTargetPoint() {
+    struct CallbackData {
+        cv::Point point;
+        bool pointSelected = false;
+    } data;
+
+    cv::Mat image = cv::imread(target_path).clone(); 
+    bool shouldExit = false;
+
+    cv::namedWindow("Image");
+    std::cout << "Click to choose target point..." << std::endl;
+
+    cv::setMouseCallback("Image", [](int event, int x, int y, int, void* userdata) {
+        if (event == cv::EVENT_LBUTTONDOWN) {
+            auto* data = reinterpret_cast<CallbackData*>(userdata);
+            data->point = cv::Point(x, y);
+            data->pointSelected = true;
+            std::cout << "Set target point at (x=" << x << ", y=" << y << ")" << std::endl;
+        }
+    }, &data);
+
+    while (!shouldExit) {
+        cv::Mat display = image.clone();  
+
+        if (data.pointSelected) {
+            cv::circle(display, data.point, 5, cv::Scalar(0, 255, 0), -1);
+        }
+
+        cv::putText(display, "Click to select target, press 'Q' to exit", 
+                    cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 0.7, 
+                    cv::Scalar(255, 255, 255), 2);
+        cv::imshow("Image", display);
+
+        int key = cv::waitKey(30) & 0xFF;
+        if (key == 'q' || key == 'Q' || key == 27) {
+            shouldExit = true;
+        }
+    }
+
+    cv::destroyWindow("Image");
+    return data.point;
+    
+}
+
+
 
 } // namespace px4_utils
