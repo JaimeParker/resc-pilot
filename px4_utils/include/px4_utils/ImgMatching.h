@@ -19,7 +19,7 @@ namespace px4_utils {
 class Imgmatching {
 private:
     std::string target_path;
-    image_transport::ImageTransport it_;
+    std::unique_ptr<image_transport::ImageTransport> it_;
     image_transport::Subscriber image_sub_;
     cv::Mat target_image_;
     cv::Mat target_desc_;
@@ -38,12 +38,14 @@ private:
     float filter_alpha_ = 0.3f; // for centroid filtering
 
     void imageCallback(const sensor_msgs::ImageConstPtr& msg);
-    void loadTargetImage(const std::string& path);
     cv::Point2f chooseTargetPoint();
     float z_value; // z value of the hold position 
 
 public:
-    Imgmatching(ros::NodeHandle& nh, const std::string& image_topic = "/camera/rgb/image_raw");
+    // zhiyuan(7.28): replace with a parameter to image_topic
+    // Imgmatching(ros::NodeHandle& nh, const std::string& image_topic);
+    Imgmatching();
+    void init(ros::NodeHandle& nh, const std::string& image_topic);
 
     bool isTargetMatched() const;
     cv::Point2f getTargetCentroid() const;
@@ -57,6 +59,8 @@ public:
     float z_ ; 
 
     void setHoldPos(float pos);
+    void loadTargetImage(const std::string& path);
+    void setTargetPath(const std::string& path);
 };
 
 } 

@@ -225,12 +225,13 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
         case SOFT_LAND:
             //TODO(zhiyuan 7_16):create a state & write the alignment logic
             if (!image_matcher_) {
-                image_matcher_ = std::make_unique<px4_utils::Imgmatching>(nh_, downward_camera_topic_);
-                
+                image_matcher_ = std::make_unique<px4_utils::Imgmatching>();
+                //TODO(zhiyuan 7_28):set the target image path (so fucking ugly and hardcoded)
+                image_matcher_->setTargetPath(target_path);
+                image_matcher_->init(nh_, downward_camera_topic_);
                 // TODO(zhaohong): u can add image_matcher_.setCameraParams(fx, fy, z) here
-                //  or publish them in a ros param server
+                // or publish them in a ros param server
             }
-            image_matcher_->setHoldPos(hold_pos_.z()); 
 
             fsmVisionLand();
             break;
@@ -512,14 +513,16 @@ void PX4CtrlFSM::fsmVisionLand() {
                   << hold_pos_.y() << ", " << hold_pos_.z() << "]" << std::endl;
     }
 
+    image_matcher_->setHoldPos(hold_pos_.z()); 
+
     if (image_matcher_ && image_matcher_->isTargetMatched()) {
         cv::Point2f centroid_2d = image_matcher_->getTargetCentroid();
         Eigen::Vector3d centroid(centroid_2d.x, centroid_2d.y, 0.0); 
         std::cout << "[PX4 FSM]: Target offset: " 
-            << image_matcher_->getOffset().x * (hold_pos_.z() - image_matcher_->land_pos_z_) << ", " 
-            << image_matcher_->getOffset().y * (hold_pos_.z() - image_matcher_->land_pos_z_) << std::endl;
+            << image_matcher_->getOffset().x  << ", " 
+            << image_matcher_->getOffset().y  << std::endl;
 
-        hold_pos_ = adjustPositionWithPIControl(image_matcher_->getOffset()* (hold_pos_.z() - image_matcher_->land_pos_z_));
+        hold_pos_ = adjustPositionWithPIControl(image_matcher_->getOffset());
 
     } else {
         std::cout << "[PX4 FSM]: No object detected." << std::endl;
