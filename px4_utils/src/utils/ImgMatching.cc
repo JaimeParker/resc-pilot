@@ -2,20 +2,27 @@
 
 namespace px4_utils {
 
-Imgmatching::Imgmatching(ros::NodeHandle& nh, const std::string& image_topic)
-    : it_(nh), matcher_(cv::NORM_HAMMING), matched_(false) {
+void Imgmatching::init(ros::NodeHandle& nh, const std::string& image_topic) { 
+    // Initialize image transport and subscriber
+    it_ = std::make_unique<image_transport::ImageTransport>(nh);
+    image_sub_ = it_->subscribe(image_topic, 1, &Imgmatching::imageCallback, this);
+
+    ROS_INFO_STREAM("Imgmatching initialized and subscribed to: " << image_topic);
+    
+    // Load target image
+    loadTargetImage(target_path);
+}
+
+Imgmatching::Imgmatching()
+    : matcher_(cv::NORM_HAMMING), matched_(false) {
 
     // (zhiyuan):ORB is not scale invariant, so requires to create manual pyramid 
     // orb_ = cv::ORB::create(500, 1.2f, 8);
     orb_ = cv::AKAZE::create(); 
 
-    // TODO:(zhiyuan)replace with a parameter to load the target image and change the path
-    std::string ROS_path = ros::package::getPath("px4_utils");
-    target_path = ROS_path + "/../target.png";
-    loadTargetImage(target_path);
-
-    image_sub_ = it_.subscribe(image_topic, 1, &Imgmatching::imageCallback, this);
-    ROS_INFO_STREAM("Imgmatching subscribed to: " << image_topic);
+    // // TODO:(zhiyuan)replace with a parameter to load the target image and change the path
+    // std::string ROS_path = ros::package::getPath("px4_utils");
+    // target_path = ROS_path + "/../target.png";
 }
 
 void Imgmatching::loadTargetImage(const std::string& path) {
@@ -86,7 +93,7 @@ void Imgmatching::imageCallback(const sensor_msgs::ImageConstPtr& msg) {
         // get hold_pos_.z() from PX4CtrlFSM
         center.x += 0.1 * fx_ / (z_value - land_pos_z_);
         center.y += 0.1 * fy_ / (z_value - land_pos_z_);
-        
+
         offset_ = centroid_ - center;
 
         if (first_frame_) {
@@ -110,8 +117,8 @@ void Imgmatching::imageCallback(const sensor_msgs::ImageConstPtr& msg) {
         for (size_t i = 1; i < traj.size(); ++i) {
             cv::line(frame, traj[i - 1], traj[i], cv::Scalar(255, 0, 0), 2);
         }
-        cv::imshow("Trajectory", frame);
         cv::circle(frame, centroid_, 5, cv::Scalar(0, 255, 0), -1);
+        cv::imshow("Trajectory", frame);
         cv::waitKey(1);
 
     } catch (cv_bridge::Exception& e) {
@@ -129,7 +136,7 @@ cv::Point2f Imgmatching::getTargetCentroid() const {
 
 cv::Point2f Imgmatching::getOffset() const {
     //(zhiyuan) convert pixel offset to real-world offset using z and f
-    return cv::Point2f(offset_.x  / fx_, offset_.y  / fy_);
+    return cv::Point2f(offset_.x * (z_value - land_pos_z_) / fx_, offset_.y * (z_value - land_pos_z_) / fy_);
 }
 
 void Imgmatching::setCameraParams(float fx, float fy, float z) {
@@ -141,6 +148,11 @@ void Imgmatching::setCameraParams(float fx, float fy, float z) {
 
 void Imgmatching::setHoldPos(float pos) {
     z_value = pos;
+}
+
+void Imgmatching::setTargetPath(const std::string& path) {
+    target_path = path;  
+    ROS_INFO_STREAM("target_image_path: " << target_path);
 }
 
 // zhiyuan: get target_point_ by mouse click

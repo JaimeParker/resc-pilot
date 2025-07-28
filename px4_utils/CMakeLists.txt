@@ -89,3 +89,6 @@ target_link_libraries(test_mocap_process ${catkin_LIBRARIES} ${PROJECT_NAME})
 
 add_executable(test_actuator_ctrl example/test_actuator_ctrl.cc)
 target_link_libraries(test_actuator_ctrl ${catkin_LIBRARIES})
+
+add_executable(test_imgmatching example/test_imgmatching.cc)
+target_link_libraries(test_imgmatching ${catkin_LIBRARIES} ${PROJECT_NAME})
