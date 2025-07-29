@@ -6,37 +6,12 @@ void Imgmatching::init(ros::NodeHandle& nh, const std::string& image_topic) {
     // Initialize image transport and subscriber
     it_ = std::make_unique<image_transport::ImageTransport>(nh);
     image_sub_ = it_->subscribe(image_topic, 1, &Imgmatching::imageCallback, this);
-
     ROS_INFO_STREAM("Imgmatching initialized and subscribed to: " << image_topic);
-    
-    // Load target image
-    loadTargetImage(target_path);
 }
 
 Imgmatching::Imgmatching()
     : matcher_(cv::NORM_HAMMING), matched_(false) {
-
-    // (zhiyuan):ORB is not scale invariant, so requires to create manual pyramid 
-    // orb_ = cv::ORB::create(500, 1.2f, 8);
     orb_ = cv::AKAZE::create(); 
-
-    // // TODO:(zhiyuan)replace with a parameter to load the target image and change the path
-    // std::string ROS_path = ros::package::getPath("px4_utils");
-    // target_path = ROS_path + "/../target.png";
-}
-
-void Imgmatching::loadTargetImage(const std::string& path) {
-    target_image_ = cv::imread(path, cv::IMREAD_GRAYSCALE);
-    if (target_image_.empty()) {
-        ROS_ERROR_STREAM("Failed to load target image: " << path);
-        return;
-    }
-    //TODO:Calculate centroid_ with H matrix
-    //TODO:change this by real target
-    // cv::Point2f target_point(435, 514);
-    target_point_ = chooseTargetPoint(); 
-    orb_->detectAndCompute(target_image_, cv::noArray(), target_kps_, target_desc_);
-    ROS_INFO_STREAM("Loaded target image with " << target_kps_.size() << " keypoints.");
 }
 
 void Imgmatching::imageCallback(const sensor_msgs::ImageConstPtr& msg) {
@@ -46,6 +21,13 @@ void Imgmatching::imageCallback(const sensor_msgs::ImageConstPtr& msg) {
         cv::Mat frame = cv_bridge::toCvShare(msg, "bgr8")->image;
         cv::Mat gray;
         cv::cvtColor(frame, gray, cv::COLOR_BGR2GRAY);
+
+        if(first_frame_) {
+            target_image_ = frame.clone();
+            target_point_ = chooseTargetPoint(target_image_);
+            orb_->detectAndCompute(gray, cv::noArray(), target_kps_, target_desc_);
+            ROS_INFO_STREAM("Loaded target image with " << target_kps_.size() << " keypoints.");
+        }   
 
         std::vector<cv::KeyPoint> frame_kps_;
         cv::Mat frame_desc_;
@@ -150,19 +132,20 @@ void Imgmatching::setHoldPos(float pos) {
     z_value = pos;
 }
 
+// zhiyuan: no use, so ignore. but keep it for future reference
 void Imgmatching::setTargetPath(const std::string& path) {
     target_path = path;  
     ROS_INFO_STREAM("target_image_path: " << target_path);
 }
 
 // zhiyuan: get target_point_ by mouse click
-cv::Point2f Imgmatching::chooseTargetPoint() {
+cv::Point2f Imgmatching::chooseTargetPoint(const cv::Mat& target_image) {
     struct CallbackData {
         cv::Point point;
         bool pointSelected = false;
     } data;
 
-    cv::Mat image = cv::imread(target_path).clone(); 
+    cv::Mat image = target_image.clone(); 
     bool shouldExit = false;
 
     cv::namedWindow("Image");
