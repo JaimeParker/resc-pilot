@@ -541,7 +541,7 @@ void PX4CtrlFSM::fsmVisionLand() {
 
     // zhiyuan: need actual value of z_
     // u can use a threshold like 0.3 m (depend on camera) to determine if the drone is near the target
-    if ((hold_pos_.z() - image_matcher_->land_pos_z_) < 1) {
+    if ((hold_pos_.z() - image_matcher_->land_pos_z_) < 0.5) {
         std::cout << "[PX4 FSM]: Vision becomes blurry. Switching to AUTO.LAND." << std::endl;
         land_initialized = false;
         changeFSMState(AUTO_LAND);
