@@ -22,75 +22,27 @@ void Imgmatching::imageCallback(const sensor_msgs::ImageConstPtr& msg) {
         cv::Mat gray;
         cv::cvtColor(frame, gray, cv::COLOR_BGR2GRAY);
 
-        if(first_frame_) {
-            target_image_ = frame.clone();
-            target_point_ = chooseTargetPoint(target_image_);
-            orb_->detectAndCompute(gray, cv::noArray(), target_kps_, target_desc_);
-            ROS_INFO_STREAM("Loaded target image with " << target_kps_.size() << " keypoints.");
-        }   
-
-        std::vector<cv::KeyPoint> frame_kps_;
-        cv::Mat frame_desc_;
-        orb_->detectAndCompute(gray, cv::noArray(), frame_kps_, frame_desc_);
-
-        if (frame_kps_.empty() || target_kps_.empty()) return;
-
-        std::vector<cv::DMatch> matches;
-        matcher_.match(target_desc_, frame_desc_, matches);
-        std::vector<cv::Point2f> pts_target, pts_frame;
-        for (const auto& m : matches) {
-            pts_target.push_back(target_kps_[m.queryIdx].pt);
-            pts_frame.push_back(frame_kps_[m.trainIdx].pt);
+        if (first_frame_) {
+            initializeTarget(gray, frame);
         }
 
-        std::vector<uchar> inliers_mask;
-        cv::Mat H = cv::findHomography(pts_target, pts_frame, cv::RANSAC, 3.0, inliers_mask);
+        std::vector<cv::KeyPoint> frame_kps;
+        cv::Mat frame_desc;
+        orb_->detectAndCompute(gray, cv::noArray(), frame_kps, frame_desc);
+
+        if (frame_kps.empty() || target_kps_.empty()) return;
 
         std::vector<cv::DMatch> inlier_matches;
-        std::vector<cv::Point2f> inlier_pts;
-        for (size_t i = 0; i < inliers_mask.size(); ++i) {
-            if (inliers_mask[i]) {
-                inlier_matches.push_back(matches[i]);
-                inlier_pts.push_back(pts_frame[i]);
-            }
-        }
-        ROS_INFO_STREAM("RANSAC inliers: " << inlier_matches.size());
-        if (inlier_pts.size() < 4) return;
+        cv::Mat H;
+        if (!computeHomographyInliers(target_kps_, target_desc_, frame_kps, frame_desc, inlier_matches, H))
+            return;
 
-        cv::Mat target_point_H = cv::Mat::ones(3, 1, CV_64F);
-        target_point_H.at<double>(0, 0) = target_point_.x;
-        target_point_H.at<double>(1, 0) = target_point_.y;
-
-        cv::Mat frame_point_H = H * target_point_H;
-
-        double w = frame_point_H.at<double>(2, 0);
-        cv::Point2f centroid_(
-            frame_point_H.at<double>(0, 0) / w,
-            frame_point_H.at<double>(1, 0) / w
-        );
-        //
-
-        cv::Point2f center(static_cast<float>(gray.cols) / 2.0f, static_cast<float>(gray.rows) / 2.0f);
-
-        // get hold_pos_.z() from PX4CtrlFSM
-        center.x += 0.1 * fx_ / (z_value - land_pos_z_);
-        center.y += 0.1 * fy_ / (z_value - land_pos_z_);
-
-        offset_ = centroid_ - center;
-
-        if (first_frame_) {
-            last_centroid_ = centroid_;
-            first_frame_ = false;
-        } else {
-            centroid_.x = filter_alpha_ * centroid_.x + (1 - filter_alpha_) * last_centroid_.x;
-            centroid_.y = filter_alpha_ * centroid_.y + (1 - filter_alpha_) * last_centroid_.y;
-            last_centroid_ = centroid_;
-        }
+        centroid_ = projectTargetPoint(H, target_point_);
+        updateOffsetWithFilter(gray, centroid_);
 
         matched_ = true;
-
         cv::Mat vis;
-        cv::drawMatches(target_image_, target_kps_, frame, frame_kps_, inlier_matches, vis);
+        cv::drawMatches(target_image_, target_kps_, frame, frame_kps, inlier_matches, vis);
         cv::imshow("Match", vis);
 
         //Add traj of centroid
@@ -105,6 +57,73 @@ void Imgmatching::imageCallback(const sensor_msgs::ImageConstPtr& msg) {
 
     } catch (cv_bridge::Exception& e) {
         ROS_ERROR_STREAM("cv_bridge exception: " << e.what());
+    }
+}
+
+void Imgmatching::initializeTarget(const cv::Mat& gray, const cv::Mat& frame) {
+    target_image_ = frame.clone();
+    target_point_ = chooseTargetPoint(target_image_);
+    orb_->detectAndCompute(gray, cv::noArray(), target_kps_, target_desc_);
+    ROS_INFO_STREAM("Loaded target image with " << target_kps_.size() << " keypoints.");
+}
+
+bool Imgmatching::computeHomographyInliers(
+    const std::vector<cv::KeyPoint>& target_kps, const cv::Mat& target_desc,
+    const std::vector<cv::KeyPoint>& frame_kps, const cv::Mat& frame_desc,
+    std::vector<cv::DMatch>& inlier_matches, cv::Mat& H) {
+
+    std::vector<cv::DMatch> matches;
+    matcher_.match(target_desc, frame_desc, matches);
+
+    std::vector<cv::Point2f> pts_target, pts_frame;
+    for (const auto& m : matches) {
+        pts_target.push_back(target_kps[m.queryIdx].pt);
+        pts_frame.push_back(frame_kps[m.trainIdx].pt);
+    }
+
+    std::vector<uchar> inliers_mask;
+    H = cv::findHomography(pts_target, pts_frame, cv::RANSAC, 3.0, inliers_mask);
+
+    for (size_t i = 0; i < inliers_mask.size(); ++i) {
+        if (inliers_mask[i]) {
+            inlier_matches.push_back(matches[i]);
+        }
+    }
+
+    ROS_INFO_STREAM("RANSAC inliers: " << inlier_matches.size());
+    return inlier_matches.size() >= 4;
+}
+
+cv::Point2f Imgmatching::projectTargetPoint(const cv::Mat& H, const cv::Point2f& target_point) {
+    cv::Mat target_point_H = cv::Mat::ones(3, 1, CV_64F);
+    target_point_H.at<double>(0, 0) = target_point.x;
+    target_point_H.at<double>(1, 0) = target_point.y;
+
+    cv::Mat frame_point_H = H * target_point_H;
+
+    double w = frame_point_H.at<double>(2, 0);
+    return cv::Point2f(
+        frame_point_H.at<double>(0, 0) / w,
+        frame_point_H.at<double>(1, 0) / w
+    );
+}
+
+void Imgmatching::updateOffsetWithFilter(const cv::Mat& gray, const cv::Point2f& centroid) {
+    cv::Point2f center(static_cast<float>(gray.cols) / 2.0f, static_cast<float>(gray.rows) / 2.0f);
+
+    // Adjust the offset based on the hold position z
+    center.x += 0.1 * fx_ / (z_value - land_pos_z_);
+    center.y += 0.1 * fy_ / (z_value - land_pos_z_);
+
+    offset_ = centroid - center;
+
+    if (first_frame_) {
+        last_centroid_ = centroid;
+        first_frame_ = false;
+    } else {
+        centroid_.x = filter_alpha_ * centroid.x + (1 - filter_alpha_) * last_centroid_.x;
+        centroid_.y = filter_alpha_ * centroid.y + (1 - filter_alpha_) * last_centroid_.y;
+        last_centroid_ = centroid_;
     }
 }
 

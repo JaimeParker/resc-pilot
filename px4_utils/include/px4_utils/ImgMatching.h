@@ -38,6 +38,11 @@ private:
     float filter_alpha_ = 0.3f; // for centroid filtering
 
     void imageCallback(const sensor_msgs::ImageConstPtr& msg);
+    void preprocessImage(const sensor_msgs::ImageConstPtr& msg, cv::Mat& frame, cv::Mat& gray);
+    void initializeTarget(const cv::Mat& frame, const cv::Mat& gray);
+    bool computeHomographyInliers(const std::vector<cv::KeyPoint>& target_kps, const cv::Mat& target_desc, const std::vector<cv::KeyPoint>& frame_kps, const cv::Mat& frame_desc, std::vector<cv::DMatch>& inlier_matches, cv::Mat& H);
+    cv::Point2f projectTargetPoint(const cv::Mat& H, const cv::Point2f& target_point);
+    void updateOffsetWithFilter(const cv::Mat& gray, const cv::Point2f& centroid);
     cv::Point2f chooseTargetPoint(const cv::Mat& image);
     float z_value; // z value of the hold position 
 
@@ -53,7 +58,7 @@ public:
 
     float fx_ = 562.94; // focal length in x
     float fy_ = 422.21; // focal length in y
-    float land_pos_z_ = 3.0f; // z position of landing target
+    float land_pos_z_ = 3.5f; // z position of landing target
     float z_ ; 
 
     void setHoldPos(float pos);
