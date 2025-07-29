@@ -226,8 +226,6 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
             //TODO(zhiyuan 7_16):create a state & write the alignment logic
             if (!image_matcher_) {
                 image_matcher_ = std::make_unique<px4_utils::Imgmatching>();
-                //TODO(zhiyuan 7_28):set the target image path (so fucking ugly and hardcoded)
-                image_matcher_->setTargetPath(target_path);
                 image_matcher_->init(nh_, downward_camera_topic_);
                 // TODO(zhaohong): u can add image_matcher_.setCameraParams(fx, fy, z) here
                 // or publish them in a ros param server

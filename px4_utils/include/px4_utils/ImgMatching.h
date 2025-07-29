@@ -38,12 +38,10 @@ private:
     float filter_alpha_ = 0.3f; // for centroid filtering
 
     void imageCallback(const sensor_msgs::ImageConstPtr& msg);
-    cv::Point2f chooseTargetPoint();
+    cv::Point2f chooseTargetPoint(const cv::Mat& image);
     float z_value; // z value of the hold position 
 
 public:
-    // zhiyuan(7.28): replace with a parameter to image_topic
-    // Imgmatching(ros::NodeHandle& nh, const std::string& image_topic);
     Imgmatching();
     void init(ros::NodeHandle& nh, const std::string& image_topic);
 
@@ -59,7 +57,6 @@ public:
     float z_ ; 
 
     void setHoldPos(float pos);
-    void loadTargetImage(const std::string& path);
     void setTargetPath(const std::string& path);
 };
 

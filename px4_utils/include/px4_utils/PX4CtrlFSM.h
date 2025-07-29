@@ -148,8 +148,6 @@ private:
     std::string downward_camera_topic_ = "/camera/rgb/image_raw";
     ros::NodeHandle nh_;  
     std::unique_ptr<px4_utils::Imgmatching> image_matcher_; 
-    std::string ROS_path = ros::package::getPath("px4_utils");
-    std::string target_path = ROS_path + "/assets/target.jpg";
 
 public:
     void init(ros::NodeHandle &nh);
