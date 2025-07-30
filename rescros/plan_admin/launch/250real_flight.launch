@@ -1,0 +1,106 @@
+<launch>
+    <!-- RL params -->
+    <arg name="model_name" value="2024-11-26_20-42.pt"/>
+    <arg name="num_obs" value="25"/>
+    <arg name="wpt_tolerance" value="0.65"/>
+    <!-- control type: 0 for rate+thrust, 1 for thrusts -->
+    <arg name="control_type" value="0"/>
+
+    <!-- Map size -->
+    <!-- Indoor flight, be cautious with these values -->
+    <!-- FIXME: if this size is different from pre-defined in MapBridge class, error -->
+    <arg name="map_size_x" value="10"/>
+    <arg name="map_size_y" value="10"/>
+    <arg name="map_size_z" value="2.0"/>
+    <!-- Geo fence only in real flight mode -->
+    <arg name="gen_fence_x" value="6.0"/>
+    <arg name="gen_fence_y" value="4.0"/>
+    <arg name="num_obstacles" value="0"/>
+
+    <!-- 0 for using real map, 1 for using randomized map -->
+    <arg name="use_randomized_map" value="0"/>
+
+    <!-- Drone params -->
+    <arg name="drone_id" value="imp250"/>
+    <arg name="mass" value="1.64" />
+    <arg name="ixx" value="0.011" />
+    <arg name="iyy" value="0.01" />
+    <arg name="izz" value="0.0065" />
+    <arg name="arm_x" value="0.088" />
+    <arg name="arm_y_long" value="0.0875" />
+    <arg name="arm_y_short" value="0.0875" />
+    <arg name="torque_constant" value="0.0119" />
+    <arg name="rescaled_thrust_min" value="0.0" />
+    <arg name="rescaled_thrust_max" value="1.0" />
+    <!-- set the body rate in degrees -->
+    <arg name="body_rate_max" value="120"/>
+    <arg name="yaw_rate_max" value="60"/>
+
+    <!-- ROS utils -->
+    <arg name="sub_queue_size" value="1"/>
+    <arg name="pub_queue_size" value="1"/>
+    <arg name="rl_att_cmd_topic" value="/rl_att_cmd"/>
+    <arg name="pose_sub_topic" value="/mavros/local_position/pose"/>
+    <arg name="vel_sub_topic" value="/mavros/local_position/velocity_local"/>
+    <arg name="accel_sub_topic" value="/mavros/imu/data"/>
+    <arg name="body_rate_sub_topic" value="/mavros/local_position/velocity_body"/>
+
+    <!-- QGC and PX4 params -->
+    <arg name="pwm_min" value="1000"/>
+    <arg name="pwm_max" value="2000"/>
+
+    <!-- mogen simulator -->
+
+
+    <node name="rviz_vis" pkg="rviz" type="rviz" output="log" args="-d $(find rviz_utils)/config/real_flight.rviz" />
+
+
+    <!-- Planning node, do not edit this -->
+    <include file="$(find plan_admin)/launch/rl_plan.xml">
+        <!-- RL params -->
+        <arg name="policy_model_" value="$(arg model_name)"/>
+        <arg name="env_num_obs_" value="$(arg num_obs)"/>
+        <arg name="env_wpt_tolerance_" value="$(arg wpt_tolerance)"/>
+        <arg name="rl_ctrl_type_" value="$(arg control_type)"/>
+
+        <!-- Map Size -->
+        <arg name="map_size_x_" value="$(arg map_size_x)"/>
+        <arg name="map_size_y_" value="$(arg map_size_y)"/>
+        <arg name="map_size_z_" value="$(arg map_size_z)"/>
+        <arg name="geo_fence_x_" value="$(arg gen_fence_x)"/>
+        <arg name="geo_fence_y_" value="$(arg gen_fence_y)"/>
+        <arg name="num_obstacles_" value="$(arg num_obstacles)"/>
+
+        <!-- Drone params -->
+        <arg name="drone_id_" value="$(arg drone_id)"/>
+        <arg name="mass_" value="$(arg mass)"/>
+        <arg name="ixx_" value="$(arg ixx)"/>
+        <arg name="iyy_" value="$(arg iyy)"/>
+        <arg name="izz_" value="$(arg izz)"/>
+        <arg name="arm_x_" value="$(arg arm_x)"/>
+        <arg name="arm_y_long_" value="$(arg arm_y_long)"/>
+        <arg name="arm_y_short_" value="$(arg arm_y_short)"/>
+        <arg name="torque_constant_" value="$(arg torque_constant)"/>
+        <arg name="rescaled_thrust_min_" value="$(arg rescaled_thrust_min)"/>
+        <arg name="rescaled_thrust_max_" value="$(arg rescaled_thrust_max)"/>
+        <arg name="body_rate_max_" value="$(arg body_rate_max)"/>
+        <arg name="yaw_rate_max_" value="$(arg yaw_rate_max)"/>
+
+        <!-- ROS utils -->
+        <arg name="sub_queue_size_" value="$(arg sub_queue_size)"/>
+        <arg name="pub_queue_size_" value="$(arg pub_queue_size)"/>
+        <arg name="rl_att_cmd_topic_" value="$(arg rl_att_cmd_topic)"/>
+        <arg name="pose_sub_topic_" value="$(arg pose_sub_topic)"/>
+        <arg name="vel_sub_topic_" value="$(arg vel_sub_topic)"/>
+        <arg name="accel_sub_topic_" value="$(arg accel_sub_topic)"/>
+        <arg name="body_rate_sub_topic_" value="$(arg body_rate_sub_topic)"/>
+
+        <!-- QGC and PX4 params -->
+        <arg name="pwm_min_" value="$(arg pwm_min)"/>
+        <arg name="pwm_max_" value="$(arg pwm_max)"/>
+
+        <!-- mogen simulator -->
+        <arg name="use_sim_map_" value="$(arg use_randomized_map)"/>
+    </include>
+
+</launch>
