@@ -114,8 +114,6 @@ void MogenReplanFSM::execCallback(const ros::TimerEvent &) {
             break;
 
         case REPLAN:
-            // TODO: 当前的重规划策略在复杂（远距离）场景行不通，但是当start-goal距离小于search_radius_时，可以使用
-            //  因此暂时已经满足室内飞行的需要了
             if (planner_manager_->pathGenerate(drone_pos_, planner_manager_->getReplanEnd(drone_pos_), true)) {
                 changeFSMState(EXEC_MOTION);
             }
