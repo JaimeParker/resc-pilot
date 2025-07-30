@@ -3,8 +3,7 @@
 //
 
 #include <ros/ros.h>
-
-#include "px4_utils/PX4CtrlFSM.h"
+#include "px4_utils_land/PX4CtrlFSM.h"
 
 int main(int argc, char **argv) {
     ros::init(argc, argv, "px4_ctrl_fsm_node");

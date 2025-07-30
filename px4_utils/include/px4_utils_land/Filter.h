@@ -2,8 +2,8 @@
 // Created by Zhaohong Liu on 24-10-16.
 //
 
-#ifndef PX4_UTILS_FILTER_H
-#define PX4_UTILS_FILTER_H
+#ifndef PX4_UTILS_LAND_FILTER_H
+#define PX4_UTILS_LAND_FILTER_H
 
 #include <Eigen/Eigen>
 #include <deque>
@@ -69,4 +69,4 @@ private:
     void calculateCoefficients(const double & dt);
 };
 
-#endif //PX4_UTILS_FILTER_H
+#endif //PX4_UTILS_LAND_FILTER_H

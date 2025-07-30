@@ -3,8 +3,7 @@
 //
 
 #include <ros/ros.h>
-
-#include "px4_utils/MocapProcessor.h"
+#include "px4_utils_land/MocapProcessor.h"
 
 int main(int argc, char** argv) {
     ros::init(argc, argv, "mocap_rate_publish_node");

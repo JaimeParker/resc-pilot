@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>px4_utils</name>
+  <name>px4_utils_land</name>
   <version>0.0.0</version>
-  <description>The px4_utils package</description>
+  <description>The px4_utils_land package</description>
 
   <maintainer email="jaimefriedhelmzhao@gmail.com">Zhaohong Liu</maintainer>
 

@@ -1,4 +1,4 @@
-#include "px4_utils/ImgMatching.h"
+#include "px4_utils_land/ImgMatching.h"
 #include <ros/package.h>
 #include <cv_bridge/cv_bridge.h>
 #include <sensor_msgs/image_encodings.h>
@@ -9,14 +9,14 @@ int main(int argc, char** argv) {
     image_transport::ImageTransport it(nh);
 
     if (argc != 1) {
-        ROS_ERROR("Usage: rosrun px4_utils test_imgmatching");
+        ROS_ERROR("Usage: rosrun px4_utils_land test_imgmatching");
         return -1;
     }
 
-    std::string ROS_path = ros::package::getPath("px4_utils");
+    std::string ROS_path = ros::package::getPath("px4_utils_land");
     std::string video_mp4 = ROS_path + "/assets/test.mp4";
 
-    px4_utils::Imgmatching img_matcher;
+    px4_utils_land::Imgmatching img_matcher;
     img_matcher.setCameraParams(562.94f, 422.21f, 3.0f);  // fx, fy, z
     img_matcher.setHoldPos(4.0f);  // hold position z
 

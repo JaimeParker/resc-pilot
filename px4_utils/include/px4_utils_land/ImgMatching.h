@@ -1,5 +1,5 @@
-#ifndef PX4_UTILS_IMAGE_MATCHING_H
-#define PX4_UTILS_IMAGE_MATCHING_H
+#ifndef PX4_UTILS_LAND_IMAGE_MATCHING_H
+#define PX4_UTILS_LAND_IMAGE_MATCHING_H
 
 #include <ros/ros.h>
 #include <ros/package.h>
@@ -14,7 +14,7 @@
 
 
     
-namespace px4_utils {
+namespace px4_utils_land {
 
 class Imgmatching {
 private:
@@ -67,4 +67,4 @@ public:
 
 } 
 
-#endif // PX4_UTILS_IMAGE_MATCHING_H
+#endif // PX4_UTILS_LAND_IMAGE_MATCHING_H

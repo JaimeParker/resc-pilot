@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(px4_utils)
+project(px4_utils_land)
 
 add_compile_options(-std=c++14)
 
@@ -26,7 +26,7 @@ find_package(OpenCV REQUIRED COMPONENTS
 
 catkin_package(
         INCLUDE_DIRS include
-        LIBRARIES px4_utils
+        LIBRARIES px4_utils_land
         CATKIN_DEPENDS mavros_msgs roscpp rospy std_msgs
 )
 
@@ -39,17 +39,17 @@ include_directories(
 
 add_library(${PROJECT_NAME} SHARED
         src/utils/Convertor.cc
-        include/px4_utils/Convertor.h
+        include/px4_utils_land/Convertor.h
         src/motion_capture/MocapProcessor.cc
-        include/px4_utils/MocapProcessor.h
+        include/px4_utils_land/MocapProcessor.h
         src/monitor/AttitudeMonitor.cc
-        include/px4_utils/AttitudeMonitor.h
+        include/px4_utils_land/AttitudeMonitor.h
         src/utils/Filter.cc
-        include/px4_utils/Filter.h
+        include/px4_utils_land/Filter.h
         src/utils/PX4CtrlFSM.cc
-        include/px4_utils/PX4CtrlFSM.h
+        include/px4_utils_land/PX4CtrlFSM.h
         src/utils/ImgMatching.cc
-        include/px4_utils/ImgMatching.h
+        include/px4_utils_land/ImgMatching.h
 )
 target_link_libraries(${PROJECT_NAME}
         ${catkin_LIBRARIES}

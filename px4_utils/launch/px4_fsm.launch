@@ -1,5 +1,5 @@
 <launch>
-    <node pkg="px4_utils" name="px4_ctrl_fsm_node" type="px4_ctrl_fsm_node" output="screen">
+    <node pkg="px4_utils_land" name="px4_ctrl_fsm_node" type="px4_ctrl_fsm_node" output="screen">
         <!-- px4 fsm params -->
         <param name="px4fsm/target_thresh" value="0.25" type="double"/>
         <param name="px4fsm/exec_period" value="0.01" type="double"/>

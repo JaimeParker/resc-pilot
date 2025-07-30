@@ -5,7 +5,7 @@
 #include <ros/ros.h>
 #include <geometry_msgs/PoseStamped.h>
 
-#include "px4_utils/MocapProcessor.h"
+#include "px4_utils_land/MocapProcessor.h"
 
 int main(int argc, char **argv) {
     ros::init(argc, argv, "test_mocap_node");
