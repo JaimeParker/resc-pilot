@@ -1,9 +1,6 @@
 # ReSC-pilot
-A search-to-control reinforcement learning (RL) based motion planning framework for quadrotor agile flight.
 
-* RL env and utils
-* ros packages
-* shared libs
+A search-to-control reinforcement learning (RL) based planning framework for quadrotor agile flight.
 
 **News**:
 
@@ -14,6 +11,12 @@ A search-to-control reinforcement learning (RL) based motion planning framework 
 Working on the code refactoring recently, the code will be open-sourced soon.
 
 ## Table of Contents
+
+The project is inspired by [flightmare](https://github.com/uzh-rpg/flightmare) and [Fast-Planner](https://github.com/HKUST-Aerial-Robotics/Fast-Planner).
+
+## Getting Started
+
+NOTE: do not use the model on your real drone directly!
 
 ## Acknowledgements
 

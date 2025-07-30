@@ -1,0 +1,9 @@
+@PACKAGE_INIT@
+
+set(RESCLIB_INCLUDE_DIRS "@CMAKE_INSTALL_PREFIX@/include")
+set(RESCLIB_LIBRARIES resclib)
+
+include(CMakeFindDependencyMacro)
+find_dependency(Eigen3)
+
+include("${CMAKE_CURRENT_LIST_DIR}/ResclibConfigVersion.cmake")
