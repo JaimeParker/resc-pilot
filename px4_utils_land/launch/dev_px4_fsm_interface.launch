@@ -6,6 +6,7 @@
         <param name="px4fsm/fence_y" value="20.0" type="double"/>
         <param name="px4fsm/fence_z" value="10.0" type="double"/>
         <param name="px4fsm/land_cmd_topic" value="/trigger_landing" />
+	<param name="image_topic" value="/camera/color/image_raw" type="string" />
     </node>
 
     <node pkg="px4_utils_land" type="px4_fsm_interface_node" name="px4_fsm_interface" output="screen">

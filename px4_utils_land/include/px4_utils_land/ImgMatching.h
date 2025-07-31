@@ -44,11 +44,15 @@ private:
     cv::Point2f projectTargetPoint(const cv::Mat& H, const cv::Point2f& target_point);
     void updateOffsetWithFilter(const cv::Mat& gray, const cv::Point2f& centroid);
     cv::Point2f chooseTargetPoint(const cv::Mat& image);
+    std::string downward_camera_topic_ = "/camera/color/image_raw";
+
     float z_value; // z value of the hold position 
+
 
 public:
     Imgmatching();
-    void init(ros::NodeHandle& nh, const std::string& image_topic);
+    void init(ros::NodeHandle& nh);
+    int frame_count_ = 0;
 
     bool isTargetMatched() const;
     cv::Point2f getTargetCentroid() const;
@@ -56,13 +60,19 @@ public:
     void setCameraParams(float fx, float fy, float z);
 
 
-    float fx_ = 562.94; // focal length in x
-    float fy_ = 422.21; // focal length in y
+    float fx_; // focal length in x
+    float fy_; // focal length in y
     float land_pos_z_ = 3.5f; // z position of landing target
     float z_ ; 
 
     void setHoldPos(float pos);
     void setTargetPath(const std::string& path);
+    template<typename T>
+    void getParamWithWarning(ros::NodeHandle& nh, const std::string& param_name, T& param) {
+        if (!nh.getParam(param_name, param)) {
+            ROS_WARN_STREAM("Failed to get param: " << param_name);
+        }
+    }
 };
 
 } 
