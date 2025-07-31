@@ -2,11 +2,16 @@
 
 namespace px4_utils_land {
 
-void Imgmatching::init(ros::NodeHandle& nh, const std::string& image_topic) { 
+void Imgmatching::init(ros::NodeHandle& nh) {  
+    getParamWithWarning(nh, "camera/image_topic", downward_camera_topic_);
+    if(downward_camera_topic_ == "/camera/color/image_raw") {
+        fx_ = 562.94f; // focal length in x
+        fy_ = 422.21f; // focal length in y
+    }               
     // Initialize image transport and subscriber
     it_ = std::make_unique<image_transport::ImageTransport>(nh);
-    image_sub_ = it_->subscribe(image_topic, 1, &Imgmatching::imageCallback, this);
-    ROS_INFO_STREAM("Imgmatching initialized and subscribed to: " << image_topic);
+    image_sub_ = it_->subscribe(downward_camera_topic_, 1, &Imgmatching::imageCallback, this);
+    ROS_INFO_STREAM("Imgmatching initialized and subscribed to: " << downward_camera_topic_);
 }
 
 Imgmatching::Imgmatching()
@@ -15,6 +20,10 @@ Imgmatching::Imgmatching()
 }
 
 void Imgmatching::imageCallback(const sensor_msgs::ImageConstPtr& msg) {
+    frame_count_++;
+    if (frame_count_ % 3 != 0) {
+        return;
+    }
     matched_ = false;
 
     try {
