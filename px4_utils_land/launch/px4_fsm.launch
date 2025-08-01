@@ -1,0 +1,19 @@
+<launch>
+    <node pkg="px4_utils_land" name="px4_ctrl_fsm_node" type="px4_ctrl_fsm_node" output="screen">
+        <!-- px4 fsm params -->
+        <param name="px4fsm/target_thresh" value="0.25" type="double"/>
+        <param name="px4fsm/exec_period" value="0.01" type="double"/>
+        <param name="px4fsm/cruise_height" value="1.0" type="double"/>
+        <param name="px4fsm/fence_x" value="5.0" type="double"/>
+        <param name="px4fsm/fence_y" value="3.0" type="double"/>
+        <param name="px4fsm/fence_z" value="2.0" type="double"/>
+        <param name="px4fsm/ground_height" value="0.0" type="double"/>
+        <param name="px4fsm/fence_offset" value="0.5" type="double"/>
+        <param name="px4fsm/max_attitude_degree" value="37.5" type="double"/>
+
+        <!-- px4 fsm topics -->
+        <param name="px4fsm/use_rl_topic" value="/use_rl" type="str"/>
+        <param name="px4fsm/rl_cmd_topic" value="/rl_att_cmd" type="str"/>
+
+    </node>
+</launch>
