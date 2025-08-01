@@ -541,7 +541,7 @@ void PX4CtrlFSM::fsmVisionLand() {
 
     // zhiyuan: need actual value of z_
     // u can use a threshold like 0.3 m (depend on camera) to determine if the drone is near the target
-    if ((hold_pos_.z() - image_matcher_->land_pos_z_) < 0.5) {
+    if ((hold_pos_.z() - image_matcher_->land_pos_z_) < 0.1) {
         std::cout << "[PX4 FSM]: Vision becomes blurry. Switching to AUTO.LAND." << std::endl;
         land_initialized = false;
         changeFSMState(AUTO_LAND);
@@ -937,7 +937,7 @@ Eigen::Vector3d PX4CtrlFSM::adjustPositionWithPIControl(const cv::Point2f& offse
     static Eigen::Vector2d integral_error(0.0, 0.0);
     static ros::Time last_update_time;
     
-    const double kp = 0.02;  // Proportional gain
+    const double kp = 0.01;  // Proportional gain
     const double ki = 0.0001; // Integral gain
     const double max_integral = 1.0; // Anti-windup limit
     const double max_correction = 0.5; // Maximum position correction per cycle

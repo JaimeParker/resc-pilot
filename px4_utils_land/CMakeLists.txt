@@ -58,37 +58,37 @@ target_link_libraries(${PROJECT_NAME}
 )
 
 
-add_executable(cmd_to_px4_node src/rl_cmd_to_px4.cc src/utils/Convertor.cc)
-target_link_libraries(cmd_to_px4_node ${catkin_LIBRARIES} ${PROJECT_NAME})
+add_executable(cmd_to_px4_node_land src/rl_cmd_to_px4.cc src/utils/Convertor.cc)
+target_link_libraries(cmd_to_px4_node_land ${catkin_LIBRARIES} ${PROJECT_NAME})
 
-add_executable(frame_human_viewer_node src/frame_human_viewer.cc src/utils/Convertor.cc)
-target_link_libraries(frame_human_viewer_node ${catkin_LIBRARIES} ${PROJECT_NAME})
+add_executable(frame_human_viewer_node_land src/frame_human_viewer.cc src/utils/Convertor.cc)
+target_link_libraries(frame_human_viewer_node_land ${catkin_LIBRARIES} ${PROJECT_NAME})
 
-add_executable(mocap_re_publish_node src/MocapRePublisher.cc)
-target_link_libraries(mocap_re_publish_node ${catkin_LIBRARIES} ${PROJECT_NAME})
+add_executable(mocap_re_publish_node_land src/MocapRePublisher.cc)
+target_link_libraries(mocap_re_publish_node_land ${catkin_LIBRARIES} ${PROJECT_NAME})
 
-add_executable(run_system_id src/run_system_id.cc)
-target_link_libraries(run_system_id ${catkin_LIBRARIES} ${PROJECT_NAME})
+add_executable(run_system_id_land src/run_system_id.cc)
+target_link_libraries(run_system_id_land ${catkin_LIBRARIES} ${PROJECT_NAME})
 
-add_executable(px4_ctrl_fsm_node src/px4_ctrl_fsm_node.cc src/utils/PX4CtrlFSM.cc)
-target_link_libraries(px4_ctrl_fsm_node ${catkin_LIBRARIES} ${PROJECT_NAME})
+add_executable(px4_ctrl_fsm_node_land src/px4_ctrl_fsm_node.cc src/utils/PX4CtrlFSM.cc)
+target_link_libraries(px4_ctrl_fsm_node_land ${catkin_LIBRARIES} ${PROJECT_NAME})
 
-add_executable(land_command_publisher_node src/land_command_publisher.cc)
-target_link_libraries(land_command_publisher_node ${catkin_LIBRARIES})
+add_executable(land_command_publisher_node_land src/land_command_publisher.cc)
+target_link_libraries(land_command_publisher_node_land ${catkin_LIBRARIES})
 
-add_executable(px4_fsm_interface_node src/px4_fsm_interface.cc)
-target_link_libraries(px4_fsm_interface_node ${catkin_LIBRARIES})
+add_executable(px4_fsm_interface_node_land src/px4_fsm_interface.cc)
+target_link_libraries(px4_fsm_interface_node_land ${catkin_LIBRARIES})
 
 ##zhiyuan: add test executables
 # add_executable(vision_node src/utils/vision_orb.cc)
 # target_link_libraries(vision_node ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
 
 # test
-add_executable(test_mocap_process example/test_mocap.cc src/motion_capture/MocapProcessor.cc)
-target_link_libraries(test_mocap_process ${catkin_LIBRARIES} ${PROJECT_NAME})
+add_executable(test_mocap_process_land example/test_mocap.cc src/motion_capture/MocapProcessor.cc)
+target_link_libraries(test_mocap_process_land ${catkin_LIBRARIES} ${PROJECT_NAME})
 
-add_executable(test_actuator_ctrl example/test_actuator_ctrl.cc)
-target_link_libraries(test_actuator_ctrl ${catkin_LIBRARIES})
+add_executable(test_actuator_ctrl_land example/test_actuator_ctrl.cc)
+target_link_libraries(test_actuator_ctrl_land ${catkin_LIBRARIES})
 
 add_executable(test_imgmatching example/test_imgmatching.cc)
 target_link_libraries(test_imgmatching ${catkin_LIBRARIES} ${PROJECT_NAME})

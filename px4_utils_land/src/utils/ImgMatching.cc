@@ -4,7 +4,7 @@ namespace px4_utils_land {
 
 void Imgmatching::init(ros::NodeHandle& nh) {  
     getParamWithWarning(nh, "camera/image_topic", downward_camera_topic_);
-    if(downward_camera_topic_ == "/camera/color/image_raw") {
+    if(downward_camera_topic_ == "/camera/rgb/image_raw") {
         fx_ = 562.94f; // focal length in x
         fy_ = 422.21f; // focal length in y
     }               
@@ -30,10 +30,10 @@ void Imgmatching::imageCallback(const sensor_msgs::ImageConstPtr& msg) {
         cv::Mat frame = cv_bridge::toCvShare(msg, "bgr8")->image;
         cv::Mat gray;
         cv::cvtColor(frame, gray, cv::COLOR_BGR2GRAY);
-
+   
         if (first_frame_) {
             initializeTarget(gray, frame);
-        }
+        } 
 
         std::vector<cv::KeyPoint> frame_kps;
         cv::Mat frame_desc;
@@ -63,6 +63,13 @@ void Imgmatching::imageCallback(const sensor_msgs::ImageConstPtr& msg) {
         cv::circle(frame, centroid_, 5, cv::Scalar(0, 255, 0), -1);
         cv::imshow("Trajectory", frame);
         cv::waitKey(1);
+
+        if (inlier_matches.size() > 50) {  
+            target_image_ = frame.clone();
+            target_point_ = centroid_;
+            target_kps_ = frame_kps;
+            target_desc_ = frame_desc.clone();
+        }
 
     } catch (cv_bridge::Exception& e) {
         ROS_ERROR_STREAM("cv_bridge exception: " << e.what());
