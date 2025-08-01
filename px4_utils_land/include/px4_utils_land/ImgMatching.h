@@ -35,7 +35,7 @@ private:
     bool first_frame_ = true;
     cv::Point2f last_centroid_;
     cv::Point2f offset_;  // pixel plant
-    float filter_alpha_ = 0.3f; // for centroid filtering
+    float filter_alpha_ = 0.9f; // for centroid filtering
 
     void imageCallback(const sensor_msgs::ImageConstPtr& msg);
     void preprocessImage(const sensor_msgs::ImageConstPtr& msg, cv::Mat& frame, cv::Mat& gray);
@@ -44,7 +44,7 @@ private:
     cv::Point2f projectTargetPoint(const cv::Mat& H, const cv::Point2f& target_point);
     void updateOffsetWithFilter(const cv::Mat& gray, const cv::Point2f& centroid);
     cv::Point2f chooseTargetPoint(const cv::Mat& image);
-    std::string downward_camera_topic_ = "/camera/color/image_raw";
+    std::string downward_camera_topic_ = "/camera/rgb/image_raw";
 
     float z_value; // z value of the hold position 
 
