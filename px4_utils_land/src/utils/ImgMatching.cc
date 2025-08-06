@@ -4,7 +4,8 @@ namespace px4_utils_land {
 
 void Imgmatching::init(ros::NodeHandle& nh) {  
     getParamWithWarning(nh, "camera/image_topic", downward_camera_topic_);
-    if(downward_camera_topic_ == "/camera/rgb/image_raw") {
+    getParamWithWarning(nh, "use_clahe_", use_clahe_);  
+    if(downward_camera_topic_ == "/camera/color/image_raw") {
         fx_ = 562.94f; // focal length in x
         fy_ = 422.21f; // focal length in y
     }               
@@ -32,9 +33,11 @@ void Imgmatching::imageCallback(const sensor_msgs::ImageConstPtr& msg) {
         cv::cvtColor(frame, gray, cv::COLOR_BGR2GRAY);
 
         // (zhiyuan) use CLAHE to enhance the image contrast
-        // But it may slow down the processing speed                
-        cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(1.0, cv::Size(4, 4));
-        clahe->apply(gray, gray);
+        // But it may slow down the processing speed      
+        if (use_clahe_) {        
+            cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(2.0, cv::Size(16, 16));
+            clahe->apply(gray, gray);
+        }
 
         if (first_frame_) {
             initializeTarget(gray, frame);
@@ -93,6 +96,15 @@ bool Imgmatching::computeHomographyInliers(
 
     std::vector<cv::DMatch> matches;
     matcher_.match(target_desc, frame_desc, matches);
+
+    const size_t max_matches = 1000;
+    if (matches.size() > max_matches) {
+        std::partial_sort(matches.begin(), matches.begin() + max_matches, matches.end(),
+                          [](const cv::DMatch& a, const cv::DMatch& b) {
+                              return a.distance < b.distance;
+                          });
+        matches.resize(max_matches);
+    }
 
     std::vector<cv::Point2f> pts_target, pts_frame;
     for (const auto& m : matches) {
@@ -159,15 +171,18 @@ cv::Point2f Imgmatching::getOffset() const {
     return cv::Point2f(offset_.x * (z_value - land_pos_z_) / fx_, offset_.y * (z_value - land_pos_z_) / fy_);
 }
 
-void Imgmatching::setCameraParams(float fx, float fy, float z) {
+void Imgmatching::setCameraParams(float fx, float fy) {
     fx_ = fx;
     fy_ = fy;
-    z_ = z;
-    ROS_INFO_STREAM("Camera parameters set: fx=" << fx_ << ", fy=" << fy_ << ", z=" << z_);
+    ROS_INFO_STREAM("Camera parameters set: fx=" << fx_ << ", fy=" << fy_);
 }
 
 void Imgmatching::setHoldPos(float pos) {
     z_value = pos;
+}
+
+void Imgmatching::setLandPos(float pos) {
+    land_pos_z_ = pos;
 }
 
 // zhiyuan: no use, so ignore. but keep it for future reference
