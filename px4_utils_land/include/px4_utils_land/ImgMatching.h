@@ -19,54 +19,54 @@ namespace px4_utils_land {
 class Imgmatching {
 private:
     std::string target_path;
+    std::string downward_camera_topic_ = "/camera/color/image_raw";
     std::unique_ptr<image_transport::ImageTransport> it_;
+    std::vector<cv::KeyPoint> target_kps_;
     image_transport::Subscriber image_sub_;
+
     cv::Mat target_image_;
     cv::Mat target_desc_;
     cv::Point2f centroid_;
     cv::Point2f target_point_;
-    std::vector<cv::KeyPoint> target_kps_;
-
-    // Choose AKAZE/ORB for feature matching
     cv::Ptr<cv::AKAZE> orb_;
     cv::BFMatcher matcher_;
-    bool matched_;
-
-    bool first_frame_ = true;
     cv::Point2f last_centroid_;
     cv::Point2f offset_;  // pixel plant
-    float filter_alpha_ = 0.95f; // for centroid filtering
+
+    bool matched_;
+    bool first_frame_ = true;
+    bool use_clahe_ = false; 
+
+    float filter_alpha_ = 0.995f; // for centroid filtering
+    float z_value; // z value of the hold position 
 
     void imageCallback(const sensor_msgs::ImageConstPtr& msg);
     void preprocessImage(const sensor_msgs::ImageConstPtr& msg, cv::Mat& frame, cv::Mat& gray);
     void initializeTarget(const cv::Mat& frame, const cv::Mat& gray);
     bool computeHomographyInliers(const std::vector<cv::KeyPoint>& target_kps, const cv::Mat& target_desc, const std::vector<cv::KeyPoint>& frame_kps, const cv::Mat& frame_desc, std::vector<cv::DMatch>& inlier_matches, cv::Mat& H);
-    cv::Point2f projectTargetPoint(const cv::Mat& H, const cv::Point2f& target_point);
     void updateOffsetWithFilter(const cv::Mat& gray, const cv::Point2f& centroid);
+  
+    cv::Point2f projectTargetPoint(const cv::Mat& H, const cv::Point2f& target_point);
     cv::Point2f chooseTargetPoint(const cv::Mat& image);
-    std::string downward_camera_topic_ = "/camera/rgb/image_raw";
-
-    float z_value; // z value of the hold position 
-
+    
 
 public:
     Imgmatching();
     void init(ros::NodeHandle& nh);
-    int frame_count_ = 0;
+    void setCameraParams(float fx, float fy);
+    void setHoldPos(float pos);
+    void setLandPos(float pos);
+    void setTargetPath(const std::string& path);
 
+    int frame_count_ = 0;
     bool isTargetMatched() const;
     cv::Point2f getTargetCentroid() const;
     cv::Point2f getOffset() const;
-    void setCameraParams(float fx, float fy, float z);
-
-
+    
     float fx_; // focal length in x
     float fy_; // focal length in y
-    float land_pos_z_ = 3.5f; // z position of landing target
-    float z_ ; 
+    float land_pos_z_; // z position of landing target
 
-    void setHoldPos(float pos);
-    void setTargetPath(const std::string& path);
     template<typename T>
     void getParamWithWarning(ros::NodeHandle& nh, const std::string& param_name, T& param) {
         if (!nh.getParam(param_name, param)) {

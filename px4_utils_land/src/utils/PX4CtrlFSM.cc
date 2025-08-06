@@ -227,8 +227,12 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
             if (!image_matcher_) {
                 image_matcher_ = std::make_unique<px4_utils_land::Imgmatching>();
                 image_matcher_->init(nh_);
-                // TODO(zhaohong): u can add image_matcher_.setCameraParams(fx, fy, z) here
-                // or publish them in a ros param server
+
+                if (init_pos_set_) {
+                    image_matcher_->setLandPos(init_pos_.z());
+                } else {
+                    image_matcher_->setLandPos(ground_height_);
+                }
             }
 
             fsmVisionLand();
