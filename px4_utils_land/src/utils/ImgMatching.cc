@@ -30,7 +30,12 @@ void Imgmatching::imageCallback(const sensor_msgs::ImageConstPtr& msg) {
         cv::Mat frame = cv_bridge::toCvShare(msg, "bgr8")->image;
         cv::Mat gray;
         cv::cvtColor(frame, gray, cv::COLOR_BGR2GRAY);
-   
+
+        // (zhiyuan) use CLAHE to enhance the image contrast
+        // But it may slow down the processing speed                
+        cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(1.0, cv::Size(4, 4));
+        clahe->apply(gray, gray);
+
         if (first_frame_) {
             initializeTarget(gray, frame);
         } 
@@ -64,12 +69,10 @@ void Imgmatching::imageCallback(const sensor_msgs::ImageConstPtr& msg) {
         cv::imshow("Trajectory", frame);
         cv::waitKey(1);
 
-        if (inlier_matches.size() > 50) {  
-            target_image_ = frame.clone();
-            target_point_ = centroid_;
-            target_kps_ = frame_kps;
-            target_desc_ = frame_desc.clone();
-        }
+        target_image_ = frame.clone();
+        target_point_ = centroid_;
+        target_kps_ = frame_kps;
+        target_desc_ = frame_desc.clone();
 
     } catch (cv_bridge::Exception& e) {
         ROS_ERROR_STREAM("cv_bridge exception: " << e.what());

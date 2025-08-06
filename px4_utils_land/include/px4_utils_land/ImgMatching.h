@@ -35,7 +35,7 @@ private:
     bool first_frame_ = true;
     cv::Point2f last_centroid_;
     cv::Point2f offset_;  // pixel plant
-    float filter_alpha_ = 0.9f; // for centroid filtering
+    float filter_alpha_ = 0.95f; // for centroid filtering
 
     void imageCallback(const sensor_msgs::ImageConstPtr& msg);
     void preprocessImage(const sensor_msgs::ImageConstPtr& msg, cv::Mat& frame, cv::Mat& gray);
