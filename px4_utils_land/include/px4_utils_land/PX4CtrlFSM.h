@@ -18,12 +18,17 @@
 #include <quadrotor_msgs/PositionCommand.h>
 #include <Eigen/Eigen>
 #include <visualization_msgs/Marker.h>
+#include <random>
 
 #include "px4_utils_land/Convertor.h"
 #include "px4_utils_land/ImgMatching.h"
 
 class PX4CtrlFSM {
 private:
+
+    // static std::mt19937 random_engine_;
+    // static std::uniform_real_distribution<double> rtk_uniform_dist_; 
+
     /* flags */
     enum FSM_EXEC_STATE { INIT, ARM, OFFBOARD, TAKEOFF, HOLD, RL_MOTION, TRAJ_CMD, SOFT_LAND, AUTO_LAND, DISARM, LANDED, EDIT};
     std::string state_str_[12] = {"INIT", "ARM", "OFFBOARD", "TAKEOFF", "HOLD", "RL_MOTION", "TRAJ_CMD", "SOFT_LAND", "AUTO_LAND", "DISARM", "LANDED", "EDIT"};

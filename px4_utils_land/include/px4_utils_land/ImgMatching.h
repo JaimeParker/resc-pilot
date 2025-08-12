@@ -11,15 +11,24 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/features2d.hpp>
 #include <opencv2/calib3d.hpp>
-
+#include <thread>
+#include <atomic>
+#include <mutex>
 
     
 namespace px4_utils_land {
 
 class Imgmatching {
 private:
+    // Non-blocking selection members
+    std::atomic<bool> selecting_{false};
+    std::atomic<bool> selection_done_{false};
+    std::thread selection_thread_;
+    std::mutex selection_mtx_;
+    cv::Mat selection_image_;  // color image used for selection
+
     std::string target_path;
-    std::string downward_camera_topic_ = "/camera/color/image_raw";
+    std::string downward_camera_topic_ = "/camera/rgb/image_raw";
     std::unique_ptr<image_transport::ImageTransport> it_;
     std::vector<cv::KeyPoint> target_kps_;
     image_transport::Subscriber image_sub_;
@@ -48,7 +57,6 @@ private:
   
     cv::Point2f projectTargetPoint(const cv::Mat& H, const cv::Point2f& target_point);
     cv::Point2f chooseTargetPoint(const cv::Mat& image);
-    
 
 public:
     Imgmatching();
@@ -60,6 +68,7 @@ public:
 
     int frame_count_ = 0;
     bool isTargetMatched() const;
+    bool isSelectionDone() const { return selection_done_.load(); }
     cv::Point2f getTargetCentroid() const;
     cv::Point2f getOffset() const;
     

@@ -5,7 +5,7 @@ namespace px4_utils_land {
 void Imgmatching::init(ros::NodeHandle& nh) {  
     getParamWithWarning(nh, "camera/image_topic", downward_camera_topic_);
     getParamWithWarning(nh, "use_clahe_", use_clahe_);  
-    if(downward_camera_topic_ == "/camera/color/image_raw") {
+    if(downward_camera_topic_ == "/camera/rgb/image_raw") {
         fx_ = 562.94f; // focal length in x
         fy_ = 422.21f; // focal length in y
     }               
@@ -39,9 +39,46 @@ void Imgmatching::imageCallback(const sensor_msgs::ImageConstPtr& msg) {
             clahe->apply(gray, gray);
         }
 
+               // Non-blocking selection: start once, then wait until done
         if (first_frame_) {
-            initializeTarget(gray, frame);
-        } 
+            if (!selecting_ && !selection_done_) {
+                {
+                    std::lock_guard<std::mutex> lk(selection_mtx_);
+                    selection_image_ = frame.clone();
+                }
+                selecting_ = true;
+                selection_thread_ = std::thread([this]() {
+                    cv::Mat img;
+                    {
+                        std::lock_guard<std::mutex> lk(selection_mtx_);
+                        img = selection_image_.clone();
+                    }
+                    // Blocks inside its own thread; does NOT block ROS callbacks
+                    cv::Point2f p = chooseTargetPoint(img);
+                    target_point_ = p;
+                    selection_done_ = true;
+                    selecting_ = false;
+                });
+                selection_thread_.detach();
+                return; // Do not process further until selection is done
+            }
+
+            if (!selection_done_) {
+                // Still waiting for user to press 'q' in the selection window
+                return;
+            }
+
+            // Selection is done: build the target template and descriptors from the selection image
+            {
+                std::lock_guard<std::mutex> lk(selection_mtx_);
+                target_image_ = selection_image_.clone();
+            }
+            cv::Mat target_gray;
+            cv::cvtColor(target_image_, target_gray, cv::COLOR_BGR2GRAY);
+            orb_->detectAndCompute(target_gray, cv::noArray(), target_kps_, target_desc_);
+            ROS_INFO_STREAM("Loaded target image with " << target_kps_.size() << " keypoints.");
+            first_frame_ = false; // proceed to matching on subsequent frames
+        }
 
         std::vector<cv::KeyPoint> frame_kps;
         cv::Mat frame_desc;
@@ -143,8 +180,7 @@ void Imgmatching::updateOffsetWithFilter(const cv::Mat& gray, const cv::Point2f&
     cv::Point2f center(static_cast<float>(gray.cols) / 2.0f, static_cast<float>(gray.rows) / 2.0f);
 
     // Adjust the offset based on the hold position z
-    center.x += 0.1 * fx_ / (z_value - land_pos_z_);
-    center.y += 0.1 * fy_ / (z_value - land_pos_z_);
+    center.y -= 0.04 * fy_ / (z_value - land_pos_z_);
 
     offset_ = centroid - center;
 

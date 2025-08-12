@@ -316,8 +316,16 @@ void PX4CtrlFSM::stateCallback(const mavros_msgs::State::ConstPtr &msg) {
     state_ = *msg;
 }
 
+// std::mt19937 PX4CtrlFSM::random_engine_(std::random_device{}());
+// std::uniform_real_distribution<double> PX4CtrlFSM::rtk_uniform_dist_(-0.5, 0.5);
+
 void PX4CtrlFSM::poseCallback(const geometry_msgs::PoseStamped::ConstPtr &msg) {
     pos_ << msg->pose.position.x, msg->pose.position.y, msg->pose.position.z;
+
+    // pos_.x() += rtk_uniform_dist_(random_engine_);
+    // pos_.y() += rtk_uniform_dist_(random_engine_);
+    // pos_.z() += rtk_uniform_dist_(random_engine_);
+
     att_quat_ = Eigen::Quaterniond(msg->pose.orientation.w, msg->pose.orientation.x,
                                    msg->pose.orientation.y, msg->pose.orientation.z);
     Convertor::q2EulerAngle(att_quat_, att_);
@@ -517,6 +525,14 @@ void PX4CtrlFSM::fsmVisionLand() {
 
     image_matcher_->setHoldPos(hold_pos_.z()); 
 
+    // Gate any motion until user finishes selection in image view
+    if (image_matcher_ && !image_matcher_->isSelectionDone()) {
+        // Keep holding current position to maintain OFFBOARD setpoints
+        hold_pos_ = pos_;
+        publishPoseSetpoint(hold_pos_);
+        return;
+    }
+
     if (image_matcher_ && image_matcher_->isTargetMatched()) {
         cv::Point2f centroid_2d = image_matcher_->getTargetCentroid();
         Eigen::Vector3d centroid(centroid_2d.x, centroid_2d.y, 0.0); 
@@ -525,13 +541,13 @@ void PX4CtrlFSM::fsmVisionLand() {
             << image_matcher_->getOffset().y  << std::endl;
 
         hold_pos_ = adjustPositionWithPIControl(image_matcher_->getOffset());
+        hold_pos_.z() -= 0.001;
 
     } else {
         std::cout << "[PX4 FSM]: No object detected." << std::endl;
     }
 
     // Gradually descend
-    hold_pos_.z() -= 0.005;
     std::cout << "[PX4 FSM]: Current hold position: " << hold_pos_.z() << std::endl;
     publishPoseSetpoint(hold_pos_);
 
@@ -941,7 +957,7 @@ Eigen::Vector3d PX4CtrlFSM::adjustPositionWithPIControl(const cv::Point2f& offse
     static Eigen::Vector2d integral_error(0.0, 0.0);
     static ros::Time last_update_time;
     
-    const double kp = 0.01;  // Proportional gain
+    const double kp = 0.002;  // Proportional gain
     const double ki = 0.0001; // Integral gain
     const double max_integral = 1.0; // Anti-windup limit
     const double max_correction = 0.5; // Maximum position correction per cycle
@@ -988,10 +1004,10 @@ Eigen::Vector3d PX4CtrlFSM::adjustPositionWithPIControl(const cv::Point2f& offse
     world_correction.y() = sin_yaw * body_correction.x() + cos_yaw * body_correction.y();
     
     // TODO(zhaohong): or using pos_ here due to time delay?
-    Eigen::Vector3d corrected_pos = hold_pos_;
+    Eigen::Vector3d corrected_pos = hold_pos_ ;
     corrected_pos.x() += world_correction.x();
     corrected_pos.y() += world_correction.y();
-    
+
     geoFenceClamp(corrected_pos);
     
     return corrected_pos;
