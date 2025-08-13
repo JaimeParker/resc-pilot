@@ -49,6 +49,7 @@ private:
 
     float filter_alpha_ = 0.995f; // for centroid filtering
     float z_value; // z value of the hold position 
+    float current_depth_;  // 当前深度值
 
     void imageCallback(const sensor_msgs::ImageConstPtr& msg);
     void preprocessImage(const sensor_msgs::ImageConstPtr& msg, cv::Mat& frame, cv::Mat& gray);
@@ -77,6 +78,7 @@ public:
     float fx_; // focal length in x
     float fy_; // focal length in y
     float land_pos_z_; // z position of landing target
+    float getCurrentDepth() const;
 
     template<typename T>
     void getParamWithWarning(ros::NodeHandle& nh, const std::string& param_name, T& param) {

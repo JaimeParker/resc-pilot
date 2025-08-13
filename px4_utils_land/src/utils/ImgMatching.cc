@@ -4,10 +4,10 @@ namespace px4_utils_land {
 
 void Imgmatching::init(ros::NodeHandle& nh) {  
     getParamWithWarning(nh, "camera/image_topic", downward_camera_topic_);
-    getParamWithWarning(nh, "use_clahe_", use_clahe_);  
+    getParamWithWarning(nh, "camera/use_clahe_", use_clahe_);  
     if(downward_camera_topic_ == "/camera/color/image_raw") {
-        fx_ = 562.94f; // focal length in x
-        fy_ = 422.21f; // focal length in y
+        getParamWithWarning(nh, "camera/fx_", fx_);
+        getParamWithWarning(nh, "camera/fy_", fy_);
     }               
     // Initialize image transport and subscriber
     it_ = std::make_unique<image_transport::ImageTransport>(nh);
@@ -277,6 +277,8 @@ void Imgmatching::disableMatching() {
     cv::destroyWindow("Trajectory");
 }
 
-
+float getCurrentDepth() {
+    
+}
 
 } // namespace px4_utils_land
