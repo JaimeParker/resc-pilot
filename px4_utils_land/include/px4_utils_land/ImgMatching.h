@@ -28,7 +28,7 @@ private:
     cv::Mat selection_image_;  // color image used for selection
 
     std::string target_path;
-    std::string downward_camera_topic_ = "/camera/rgb/image_raw";
+    std::string downward_camera_topic_ = "/camera/color/image_raw";
     std::unique_ptr<image_transport::ImageTransport> it_;
     std::vector<cv::KeyPoint> target_kps_;
     image_transport::Subscriber image_sub_;

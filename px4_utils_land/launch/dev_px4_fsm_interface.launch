@@ -12,4 +12,7 @@
     <node pkg="px4_utils_land" type="px4_fsm_interface_node_land" name="px4_fsm_interface" output="screen">
         <param name="land_topic" value="/trigger_landing" />
     </node>
+    
+      <node name="rviz" pkg="rviz" type="rviz" args="-d $(find px4_utils_land)/launch/test.rviz" required="true" />/>
+      
 </launch>

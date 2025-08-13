@@ -229,8 +229,7 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
                 image_matcher_->init(nh_);
 
                 if (init_pos_set_) {
-                    // image_matcher_->setLandPos(init_pos_.z());
-                    image_matcher_->setLandPos(3.5);
+                    image_matcher_->setLandPos(init_pos_.z());
                 } else {
                     image_matcher_->setLandPos(ground_height_);
                 }
@@ -1017,8 +1016,6 @@ Eigen::Vector3d PX4CtrlFSM::adjustPositionWithPIControl(const cv::Point2f& offse
         std::cout << "\033[1;33m[PX4 FSM]: Warning.\033[0m" << std::endl;
     }
 
-    std::cout << "[PX4 FSM]: PI correction applied: [" 
-              << world_correction.x() << ", " << world_correction.y() << "]" << std::endl;
     // TODO(zhaohong): or using pos_ here due to time delay?
     Eigen::Vector3d corrected_pos = hold_pos_ ;
     corrected_pos.x() += world_correction.x();
