@@ -21,6 +21,7 @@ Imgmatching::Imgmatching()
 }
 
 void Imgmatching::imageCallback(const sensor_msgs::ImageConstPtr& msg) {
+    if (!enabled_) { return;}
     frame_count_++;
     if (frame_count_ % 3 != 0) {
         return;
@@ -158,7 +159,6 @@ bool Imgmatching::computeHomographyInliers(
         }
     }
 
-    ROS_INFO_STREAM("RANSAC inliers: " << inlier_matches.size());
     return inlier_matches.size() >= 4;
 }
 
@@ -224,7 +224,6 @@ void Imgmatching::setLandPos(float pos) {
 // zhiyuan: no use, so ignore. but keep it for future reference
 void Imgmatching::setTargetPath(const std::string& path) {
     target_path = path;  
-    ROS_INFO_STREAM("target_image_path: " << target_path);
 }
 
 // zhiyuan: get target_point_ by mouse click
@@ -270,6 +269,12 @@ cv::Point2f Imgmatching::chooseTargetPoint(const cv::Mat& target_image) {
     cv::destroyWindow("Image");
     return data.point;
     
+}
+
+void Imgmatching::disableMatching() {
+    enabled_ = false;
+    cv::destroyWindow("Match");
+    cv::destroyWindow("Trajectory");
 }
 
 

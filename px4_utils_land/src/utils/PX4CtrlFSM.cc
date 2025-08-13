@@ -229,7 +229,8 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
                 image_matcher_->init(nh_);
 
                 if (init_pos_set_) {
-                    image_matcher_->setLandPos(init_pos_.z());
+                    // image_matcher_->setLandPos(init_pos_.z());
+                    image_matcher_->setLandPos(3.5);
                 } else {
                     image_matcher_->setLandPos(ground_height_);
                 }
@@ -536,10 +537,6 @@ void PX4CtrlFSM::fsmVisionLand() {
     if (image_matcher_ && image_matcher_->isTargetMatched()) {
         cv::Point2f centroid_2d = image_matcher_->getTargetCentroid();
         Eigen::Vector3d centroid(centroid_2d.x, centroid_2d.y, 0.0); 
-        std::cout << "[PX4 FSM]: Target offset: " 
-            << image_matcher_->getOffset().x  << ", " 
-            << image_matcher_->getOffset().y  << std::endl;
-
         hold_pos_ = adjustPositionWithPIControl(image_matcher_->getOffset());
         hold_pos_.z() -= 0.001;
 
@@ -561,9 +558,10 @@ void PX4CtrlFSM::fsmVisionLand() {
 
     // zhiyuan: need actual value of z_
     // u can use a threshold like 0.3 m (depend on camera) to determine if the drone is near the target
-    if ((hold_pos_.z() - image_matcher_->land_pos_z_) < 0.1) {
+    if ((hold_pos_.z() - image_matcher_->land_pos_z_) < 1e-6) {
         std::cout << "[PX4 FSM]: Vision becomes blurry. Switching to AUTO.LAND." << std::endl;
         land_initialized = false;
+        image_matcher_->disableMatching();
         changeFSMState(AUTO_LAND);
     }
 }
@@ -1003,6 +1001,24 @@ Eigen::Vector3d PX4CtrlFSM::adjustPositionWithPIControl(const cv::Point2f& offse
     world_correction.x() = cos_yaw * body_correction.x() - sin_yaw * body_correction.y();
     world_correction.y() = sin_yaw * body_correction.x() + cos_yaw * body_correction.y();
     
+    if (world_correction.x() > 0.1) {
+        world_correction.x() = 0.1;
+        std::cout << "\033[1;33m[PX4 FSM]: Warning.\033[0m" << std::endl;
+    } else if (world_correction.x() < -0.1) {
+        world_correction.x() = -0.1;
+        std::cout << "\033[1;33m[PX4 FSM]: Warning.\033[0m" << std::endl;
+    }
+
+    if (world_correction.y() > 0.1) {
+        world_correction.y() = 0.1;
+        std::cout << "\033[1;33m[PX4 FSM]: Warning.\033[0m" << std::endl;
+    } else if (world_correction.y() < -0.1) {
+        world_correction.y() = -0.1;
+        std::cout << "\033[1;33m[PX4 FSM]: Warning.\033[0m" << std::endl;
+    }
+
+    std::cout << "[PX4 FSM]: PI correction applied: [" 
+              << world_correction.x() << ", " << world_correction.y() << "]" << std::endl;
     // TODO(zhaohong): or using pos_ here due to time delay?
     Eigen::Vector3d corrected_pos = hold_pos_ ;
     corrected_pos.x() += world_correction.x();
