@@ -3,6 +3,7 @@
 //
 
 #include "px4_utils_land/PX4CtrlFSM.h"
+#include <cmath>
 
 
 
@@ -329,6 +330,8 @@ void PX4CtrlFSM::poseCallback(const geometry_msgs::PoseStamped::ConstPtr &msg) {
     att_quat_ = Eigen::Quaterniond(msg->pose.orientation.w, msg->pose.orientation.x,
                                    msg->pose.orientation.y, msg->pose.orientation.z);
     Convertor::q2EulerAngle(att_quat_, att_);
+    // Update Z history for landing detection based on Z stability
+    updateZHistory(pos_.z(), msg->header.stamp);
 
     if (!init_pos_set_) {
         init_pos_buffer_.emplace_back(pos_);
@@ -555,14 +558,53 @@ void PX4CtrlFSM::fsmVisionLand() {
         return;
     }
 
-    // zhiyuan: need actual value of z_
-    // u can use a threshold like 0.3 m (depend on camera) to determine if the drone is near the target
-    if ((hold_pos_.z() - image_matcher_->land_pos_z_) < 1e-6) {
-        std::cout << "[PX4 FSM]: Vision becomes blurry. Switching to AUTO.LAND." << std::endl;
+    // Switch to AUTO.LAND only when Z is steady for a period (touchdown),
+    // avoids yaw jump while still in the air due to estimator noise.
+
+    // if ((hold_pos_.z() - image_matcher_->land_pos_z_) < 1e-6) {
+    //     std::cout << "[PX4 FSM]: Vision becomes blurry. Switching to AUTO.LAND." << std::endl;
+
+    if (hasLandedFromZHistory(z_stationary_window_sec_, z_stationary_epsilon_)) {
+        std::cout << "[PX4 FSM]: Z stable for " << z_stationary_window_sec_ 
+                  << "s (|dz|<" << z_stationary_epsilon_ 
+                  << ") -> Switching to AUTO.LAND." << std::endl;
+
         land_initialized = false;
-        image_matcher_->disableMatching();
+        if (image_matcher_) image_matcher_->disableMatching();
         changeFSMState(AUTO_LAND);
+        return;
     }
+}
+
+// Z stability helpers
+void PX4CtrlFSM::updateZHistory(double z, const ros::Time &now) {
+    z_history_.emplace_back(now, z);
+
+    // Keep history covering a bit more than the window and cap size
+    const double keep_sec = std::max(2.5 * z_stationary_window_sec_, 2.0);
+    while (!z_history_.empty() && (now - z_history_.front().first).toSec() > keep_sec) {
+        z_history_.pop_front();
+    }
+    while (z_history_.size() > z_history_max_len_) {
+        z_history_.pop_front();
+    }
+}
+
+bool PX4CtrlFSM::hasLandedFromZHistory(double window_sec, double epsilon) const {
+    if (z_history_.empty()) return false;
+    const ros::Time now = z_history_.back().first;
+    const double z_latest = z_history_.back().second;
+
+    ros::Time oldest_in_window = now;
+    for (auto it = z_history_.rbegin(); it != z_history_.rend(); ++it) {
+        const double dt = (now - it->first).toSec();
+        if (dt > window_sec) break;
+        if (std::fabs(it->second - z_latest) > epsilon) {
+            return false; // not stable
+        }
+        oldest_in_window = it->first;
+    }
+    return (now - oldest_in_window).toSec() >= window_sec;
 }
 
 void PX4CtrlFSM::fsmGradualTakeoff() {

@@ -19,6 +19,7 @@
 #include <Eigen/Eigen>
 #include <visualization_msgs/Marker.h>
 #include <random>
+#include <deque>
 
 #include "px4_utils_land/Convertor.h"
 #include "px4_utils_land/ImgMatching.h"
@@ -138,6 +139,14 @@ private:
     ros::Publisher refined_goal_marker_pub_;
     
     double traj_target_vel_ = 0.0;
+
+    // Z stability tracking for reliable landing detection
+    std::deque<std::pair<ros::Time, double>> z_history_;
+    double z_stationary_window_sec_ = 1.0;     // duration to consider z as unchanged
+    double z_stationary_epsilon_ = 0.01;       // 1 cm tolerance
+    size_t z_history_max_len_ = 500;           // cap history to ~5s at 100Hz
+    void updateZHistory(double z, const ros::Time &now);
+    bool hasLandedFromZHistory(double window_sec, double epsilon) const;
 
     enum LandingSequenceState {
         RETURN_TO_TAKEOFF,

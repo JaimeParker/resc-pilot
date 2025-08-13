@@ -277,8 +277,8 @@ void Imgmatching::disableMatching() {
     cv::destroyWindow("Trajectory");
 }
 
-float getCurrentDepth() {
-    
+float Imgmatching::getCurrentDepth() const {
+    return current_depth_;
 }
 
 } // namespace px4_utils_land
