@@ -2,10 +2,6 @@
 
 ROS package for Resc-Pilot.
 
-## Table of Contents
-
-todo
-
 ## 1. Setup and Config
 
 ### Prerequisites
@@ -16,7 +12,7 @@ todo
 
 'FindTorch.cmake' is developing, since the package is decompressed in a custom directory, we need to set the path manually currently.
 
-In the [backend_optimizer/CMakeLists.txt](backend_optimizer/CMakeLists.txt), add
+In the [backend_optimizer/CMakeLists.txt](backend_optimizer/CMakeLists.txt) line 20, add
 
 ```cmake
 set(Torch_DIR ~/3rdParty/libtorch/share/cmake/Torch)

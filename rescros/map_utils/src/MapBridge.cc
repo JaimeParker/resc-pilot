@@ -112,87 +112,16 @@ void MapBridge::setRandomObstacles() {
 void MapBridge::setDefaultObstacles() {
 
     std::vector<std::array<double, 4>> obstacles = {
-        // {-0.5, 1.0, 0.5, 1.5},
-        // {0.0, 0.5, 4.0, 0.5},
-        // {0.0, 2.5, 2.0, 0.5},
-        // {1.0, 2.5, 1.0, 4.0},
-        // {4.0, 1.0, 1.0, 3.0},
-        // {2.0, 5.5, 4.0, 1.0},
-        // {5.0, 3.0, 4.0, 1.0},
-        // {8.0, 4.0, 1.0, 4.0},
-        // {5.0, 6.5, 1.0, 3.5},
-        // {6.0, 9.5, 3.5, 0.5}
-
-        // scene1
-        // {-1.3, -0.55, 0.35, 0.45},
-        // {0.3, 0.35, 0.35, 0.55}
-
-        // scene2
-        // {-1.2, 0.1, 0.35, 1.0},
-        // {0.5, -0.85, 0.35, 0.9}
-
-        // mod1 maze
-        // {-10, -10, 20, 1},
-        // {-10, -10, 1, 20},
-        // {-9, 9, 18, 1},
-        // {9, -9, 1, 19},
-        // {-9, -7, 3, 1},
-        // {-4, -9, 1, 5},
-        // {-7, -4, 4, 1},
-        // {-1, -7, 5, 1},
-        // {7, -9, 1, 3},
-        // {3, -6, 1, 2},
-        // {-1, -4, 7, 1},
-        // {-1, -3, 1, 2},
-        // {-9, 1, 2, 1},
-        // {-7, -1, 1, 5},
-        // {-6, -1, 2, 1},
-        // {-6, 3, 7, 1},
-        // {-2, 1, 3, 1},
-        // {1, -1, 1, 5},
-        // {0, -2, 2, 1},
-        // {-1, 8, 1, 1},
-        // {2, 2, 3, 1},
-        // {7, 3, 2, 3},
-        // {6, -1, 3, 1},
-        // {-9, 6, 2, 1},
-        // {-7, 5, 1, 2},
-        // {-6, 5, 10, 1},
-        // {-4, 6, 1, 1},
-        // {2, 6, 1, 1},
-        // {2, 6, 1, 1},
-        // {4, 8, 1, 1}
-
-        // mod2 maze
-        {-10, -10, 20, 1},
-        {-10, -10, 1, 20},
-        {-9, 9, 18, 1},
-        {9, -9, 1, 19},
-        {-6, -9, 1, 3},
-        {-9, -1, 3, 1},
-        {-6, -3, 1, 3},
-        {-6, -4, 3, 1},
-        {-3, -7, 1, 4},
-        {-2, -7, 4, 1},
-        {4, -7, 1, 3},
-        {-6, 2, 3, 1},
-        {-3, -1, 1, 4},
-        {-2, 1, 3, 1},
-        {0, -4, 1, 6},
-        {0, -4, 9, 1},
-        {3, -3, 1, 2},
-        {7, -1, 2, 1},
-        {-7, 6, 1, 2},
-        {-7, 5, 5, 1},
-        {3, 1, 3, 1},
-        {3, 2, 1, 3},
-        {1, 4, 3, 1},
-        {1, 4, 1, 3},
-        {1, 6, 5, 1},
-        {5, 6, 1, 3},
-        {7, 3, 2, 1},
-
-
+        {-0.5, 1.0, 0.5, 1.5},
+        {0.0, 0.5, 4.0, 0.5},
+        {0.0, 2.5, 2.0, 0.5},
+        {1.0, 2.5, 1.0, 4.0},
+        {4.0, 1.0, 1.0, 3.0},
+        {2.0, 5.5, 4.0, 1.0},
+        {5.0, 3.0, 4.0, 1.0},
+        {8.0, 4.0, 1.0, 4.0},
+        {5.0, 6.5, 1.0, 3.5},
+        {6.0, 9.5, 3.5, 0.5}
     };
 
     for (const auto& obs_cfg : obstacles) {
@@ -292,7 +221,8 @@ void MapBridge::cvEDTransform(const cv::Mat &occ_map, cv::Mat &sdf_map) const {
 }
 
 void MapBridge::updateGlobalSDFMap() {
-    // TODO: 在引入相机的仿真后，此方法将被废弃，转而使用直接的ESDF建图第三方库
+    // TODO: this method will be deprecated after introducing camera simulation,
+    //  and replaced by a third-party library for direct ESDF mapping
     if (!has_global_sdf_) {
         int map_width = mp_.map_voxel_num_(0);
         int map_height = mp_.map_voxel_num_(1);
@@ -486,13 +416,9 @@ bool MapBridge::isInflateOccupied(const Eigen::Vector3d &pos, const std::optiona
         return true;  // occupied while out of the map
     }
 
-     if (!mp_.has_god_view_ && !isInSensingRange(pos)) {
-         return false;  // 注意，这可能会导致local minima
-     }
-    // TODO: 废弃与否暂时存疑，需要进一步测试。
-    //  如果选择废弃掉上述判断，在不具备全局地图时，重规划的end到pos的距离已经做了限制，因此不会出现重规划每次都是pos->goal的搜索，已经减少了未知区域的无意义搜索。
-    //  但是这样一是会导致在局部地图中的局部最小值，因为在pos->goal的大目标下，pos->temp end显然不是最优解，而暂时还没有针对local minima的处理方法；
-    //  二是如果end在局部地图中的障碍物中，会导致在replan环节死锁，无法向下进行。
+    if (!mp_.has_god_view_ && !isInSensingRange(pos)) {
+        return false;  // 注意，这可能会导致local minima
+    }
 
     if (!use_real_sdf_) {
         const auto idx = voxel2BufferIndex(pos2Voxel(pos));
@@ -602,8 +528,7 @@ void MapBridge::updateLocalMap() {
     if (use_real_sdf_) {
         return;
     }
-    // TODO: 暂时在这里直接将 pos 周边的 global sdf buffer 赋值给 local sdf buffer，
-    //  等 raycast 和 esdf 建立全部完成后再删除此处的代码，改为单纯可视化的
+    // TODO: update local sdf map based on the updated grid map, not values in global sdf map
 
     const double half_sensing_range = mp_.sensing_range_ / 2.0;
     const double min_x = drone_pos_(0) - half_sensing_range;
@@ -626,7 +551,7 @@ void MapBridge::updateLocalMap() {
 
                 md_.local_sdf_buffer_[idx + i] = md_.global_sdf_buffer_[idx + i];
             }
-            // FIXME: 离谱，为什么把xy的更新放在for之外，sim250.launch 就卡住了
+            // FIXME: 把xy的更新放在for之外，sim250.launch 就卡住了
             // y += mp_.resolution_;
         }
         // x += mp_.resolution_;
@@ -673,7 +598,7 @@ void MapBridge::setGeoFencePcl(const double &fence_size_x, const double &fence_s
 
 [[maybe_unused]]
 void MapBridge::raycast(const Eigen::Vector3d &pos, const Eigen::Vector3d& att) {
-    // TODO: 等一切顺利之后改成真正的 raycast
+    // TODO: realize real raycast
     if (!isInMap(pos)) {
         return;
     }
@@ -718,7 +643,7 @@ void MapBridge::markObstacle(const Eigen::Vector3d &start, const Eigen::Vector3d
         const auto idx = voxel2BufferIndex(voxel);
         md_.local_occupancy_buffer_[idx] = md_.global_occupancy_buffer_[idx];
 
-        // 此处先偷懒，直接把global的值拿过来，实际上是应该根据更新的grid map，再更新local sdf map
+        // TODO: update local sdf map based on the updated grid map, not values in global sdf map
         md_.local_sdf_buffer_[idx] = md_.global_sdf_buffer_[idx];
 
         for (int i = 0; i < mp_.map_voxel_num_(2); i++) {
