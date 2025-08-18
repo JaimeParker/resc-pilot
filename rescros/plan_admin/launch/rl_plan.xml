@@ -1,0 +1,143 @@
+<launch>
+    <!-- This file will be called by launch file -->
+    <!-- Do not set default value for those without a fixed params tag -->
+
+    <!-- RL env params -->
+    <arg name="policy_model_" />
+    <arg name="env_num_obs_" />
+    <arg name="env_wpt_tolerance_"/>
+    <arg name="rl_ctrl_type_"/>
+    <!-- fixed params -->
+    <arg name="env_num_acts_" value="4" />
+    <arg name="env_collision_judgement_" value="0.3" />
+    <arg name="env_dt_" value="0.02" />
+    <arg name="env_wpt_interval_min_" value="0.5" />
+    <arg name="env_wpt_interval_max_" value="2.5" />
+    <arg name="sdf_value_no_obstacle_" value="3.0" />
+    <!-- Sim to real transfer-->
+    <arg name="use_monitor_" value="1"/>
+
+    <!-- Map size -->
+    <arg name="resolution_" value="0.1"/>
+    <arg name="map_size_x_"/>
+    <arg name="map_size_y_"/>
+    <arg name="map_size_z_"/>
+    <arg name="geo_fence_x_"/>
+    <arg name="geo_fence_y_"/>
+    <arg name="num_obstacles_"/>
+
+    <!-- Drone params -->
+    <arg name="drone_id_"/>
+    <arg name="mass_"/>
+    <arg name="ixx_"/>
+    <arg name="iyy_"/>
+    <arg name="izz_"/>
+    <arg name="arm_x_"/>
+    <arg name="arm_y_long_"/>
+    <arg name="arm_y_short_"/>
+    <arg name="torque_constant_"/>
+    <arg name="rescaled_thrust_min_"/>
+    <arg name="rescaled_thrust_max_"/>
+    <arg name="body_rate_max_"/>
+    <arg name="yaw_rate_max_"/>
+    <!-- imp250 only -->
+    <arg name="thrust_intersect_gram_" value="-1823.063"/>
+
+    <!-- QGC and PX4 params -->
+    <arg name="pwm_min_"/>
+    <arg name="pwm_max_"/>
+    <!-- fixed params -->
+    <arg name="p_roll_rate" value="5.15"/>
+    <arg name="p_pitch_rate" value="5.15"/>
+    <arg name="p_yaw_rate" value="3.62"/>
+
+    <!-- ROS utils -->
+    <arg name="sub_queue_size_"/>
+    <arg name="pub_queue_size_"/>
+    <arg name="pose_sub_topic_"/>
+    <arg name="vel_sub_topic_"/>
+    <arg name="body_rate_sub_topic_"/>
+    <arg name="accel_sub_topic_"/>
+    <arg name="rl_att_cmd_topic_"/>
+    <!-- fixed params -->
+    <arg name="wpt0_topic_" value="/search/wpt0"/>
+    <arg name="wpt1_topic_" value="/search/wpt1"/>
+    <arg name="rl_monitor_pos_topic_" value="/rl_monitor_pos_target"/>
+    <arg name="rl_monitor_att_topic_" value="/rl_monitor_att_target"/>
+    <arg name="use_rl_topic_" value="/use_rl"/>
+    <arg name="use_pid_topic_" value="/use_pid"/>
+
+    <!-- mogen simulator -->
+    <arg name="use_sim_map_"/>
+
+    <!-- Planning node -->
+    <node pkg="plan_admin" name="mogen_node" type="mogen_node" output="screen">
+        <!-- Policy model -->
+        <param name="rl/policy" value="$(arg policy_model_)" type="str"/>
+        <param name="rl/ctrl_type" value="$(arg rl_ctrl_type_)" type="int"/>
+        <!-- RL env params -->
+        <param name="rl/env_num_acts" value="$(arg env_num_acts_)" type="int"/>
+        <param name="rl/env_num_obs" value="$(arg env_num_obs_)" type="int"/>
+        <param name="rl/env_collision_judgement" value="$(arg env_collision_judgement_)" type="double"/>
+        <param name="rl/env_dt" value="$(arg env_dt_)" type="double"/>
+        <param name="rl/env_wpt_tolerance" value="$(arg env_wpt_tolerance_)" type="double"/>
+        <param name="rl/env_wpt_interval_min" value="$(arg env_wpt_interval_min_)" type="double"/>
+        <param name="rl/env_wpt_interval_max" value="$(arg env_wpt_interval_max_)" type="double"/>
+        <param name="rl/sdf_value_no_obstacle" value="$(arg sdf_value_no_obstacle_)" type="double"/>
+        <!-- Sim to real transfer -->
+        <param name="rl/monitor" value="$(arg use_monitor_)" type="int"/>
+
+        <!-- Map size -->
+        <param name="map/resolution" value="$(arg resolution_)" type="double"/>
+        <param name="map/map_size_x" value="$(arg map_size_x_)" type="double"/>
+        <param name="map/map_size_y" value="$(arg map_size_y_)" type="double"/>
+        <param name="map/map_size_z" value="$(arg map_size_z_)" type="double"/>
+        <param name="map/geo_fence_x" value="$(arg geo_fence_x_)" type="double"/>
+        <param name="map/geo_fence_y" value="$(arg geo_fence_y_)" type="double"/>
+        <param name="map/num_obstacles" value="$(arg num_obstacles_)" type="int"/>
+
+        <!-- Drone params -->
+        <param name="drone/drone_id" value="$(arg drone_id_)" type="str"/>
+        <param name="drone/mass" value="$(arg mass_)" type="double"/>
+        <param name="drone/ixx" value="$(arg ixx_)" type="double"/>
+        <param name="drone/iyy" value="$(arg iyy_)" type="double"/>
+        <param name="drone/izz" value="$(arg izz_)" type="double"/>
+        <param name="drone/arm_x" value="$(arg arm_x_)" type="double"/>
+        <param name="drone/arm_y_long" value="$(arg arm_y_long_)" type="double"/>
+        <param name="drone/arm_y_short" value="$(arg arm_y_short_)" type="double"/>
+        <param name="drone/torque_constant" value="$(arg torque_constant_)" type="double"/>
+        <param name="drone/rescaled_thrust_min" value="$(arg rescaled_thrust_min_)" type="double"/>
+        <param name="drone/rescaled_thrust_max" value="$(arg rescaled_thrust_max_)" type="double"/>
+        <param name="drone/body_rate_max" value="$(arg body_rate_max_)" type="double"/>
+        <param name="drone/yaw_rate_max" value="$(arg yaw_rate_max_)" type="double"/>
+        <param name="drone/collective_thrust_dg_min" value="0.3" type="double"/>
+        <param name="drone/collective_thrust_dg_max" value="1.7" type="double"/>
+        <param name="drone/thrust_intersect_gram" value="$(arg thrust_intersect_gram_)" type="double"/>
+
+        <!-- QGC and PX4 params -->
+        <param name="qgc/pwm_min" value="$(arg pwm_min_)" type="int"/>
+        <param name="qgc/pwm_max" value="$(arg pwm_max_)" type="int"/>
+        <param name="qgc/p_roll_rate" value="$(arg p_roll_rate)" type="double"/>
+        <param name="qgc/p_pitch_rate" value="$(arg p_pitch_rate)" type="double"/>
+        <param name="qgc/p_yaw_rate" value="$(arg p_yaw_rate)" type="double"/>
+
+        <!-- ROS utils -->
+        <param name="sub_queue_size" value="$(arg sub_queue_size_)" type="int"/>
+        <param name="pub_queue_size" value="$(arg pub_queue_size_)" type="int"/>
+        <param name="wpt0_topic" value="$(arg wpt0_topic_)" type="str"/>
+        <param name="wpt1_topic" value="$(arg wpt1_topic_)" type="str"/>
+        <param name="rl_att_cmd_topic" value="$(arg rl_att_cmd_topic_)" type="str"/>
+        <param name="rl_monitor_pos_topic" value="$(arg rl_monitor_pos_topic_)" type="str"/>
+        <param name="rl_monitor_att_topic" value="$(arg rl_monitor_att_topic_)" type="str"/>
+        <param name="pose_sub_topic" value="$(arg pose_sub_topic_)" type="str"/>
+        <param name="vel_sub_topic" value="$(arg vel_sub_topic_)" type="str"/>
+        <param name="accel_sub_topic" value="$(arg accel_sub_topic_)" type="str"/>
+        <param name="body_rate_sub_topic" value="$(arg body_rate_sub_topic_)" type="str"/>
+        <param name="use_rl_topic" value="$(arg use_rl_topic_)" type="str"/>
+        <param name="use_pid_topic" value="$(arg use_pid_topic_)" type="str"/>
+
+        <!-- mogen simulator setting -->
+        <param name="sim/use_sim_map" value="$(arg use_sim_map_)" type="int"/>
+    </node>
+
+</launch>

@@ -1,0 +1,12 @@
+[Unit]
+Description=NoMachine HDMI Detection and Headless Optimization
+After=multi-user.target network.target
+Requires=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/nomachine_headless_check.sh
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target
