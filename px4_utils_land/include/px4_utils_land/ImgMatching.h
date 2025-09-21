@@ -9,81 +9,68 @@
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
-#include <opencv2/features2d.hpp>
-#include <opencv2/calib3d.hpp>
-#include <thread>
-#include <atomic>
-#include <mutex>
+#include <string>
 
     
 namespace px4_utils_land {
 
 class Imgmatching {
 private:
-    // Non-blocking selection members
-    std::atomic<bool> selecting_{false};
-    std::atomic<bool> selection_done_{false};
-    std::thread selection_thread_;
-    std::mutex selection_mtx_;
-    cv::Mat selection_image_;  // color image used for selection
-
-    std::string target_path;
     std::string downward_camera_topic_ = "/camera/color/image_raw";
     std::unique_ptr<image_transport::ImageTransport> it_;
-    std::vector<cv::KeyPoint> target_kps_;
     image_transport::Subscriber image_sub_;
-
-    cv::Mat target_image_;
-    cv::Mat target_desc_;
-    cv::Point2f centroid_;
-    cv::Point2f target_point_;
-    cv::Ptr<cv::AKAZE> orb_;
-    cv::BFMatcher matcher_;
-    cv::Point2f last_centroid_;
-    cv::Point2f offset_;  // pixel plant
-
-    bool matched_;
-    bool first_frame_ = true;
-    bool use_clahe_ = false; 
-    bool enabled_ = true;  // 控制是否进行图像匹配
-
-    float filter_alpha_ = 0.995f; // for centroid filtering
-    float z_value; // z value of the hold position 
-    float current_depth_;  // 当前深度值
-
-    void imageCallback(const sensor_msgs::ImageConstPtr& msg);
-    void preprocessImage(const sensor_msgs::ImageConstPtr& msg, cv::Mat& frame, cv::Mat& gray);
-    void initializeTarget(const cv::Mat& frame, const cv::Mat& gray);
-    bool computeHomographyInliers(const std::vector<cv::KeyPoint>& target_kps, const cv::Mat& target_desc, const std::vector<cv::KeyPoint>& frame_kps, const cv::Mat& frame_desc, std::vector<cv::DMatch>& inlier_matches, cv::Mat& H);
-    void updateOffsetWithFilter(const cv::Mat& gray, const cv::Point2f& centroid);
+    
+    int hsv_h_min_ = 0;   
+    int hsv_h_max_ = 180;  
+    int hsv_s_min_ = 0;     
+    int hsv_s_max_ = 30;   
+    int hsv_v_min_ = 200;  
+    int hsv_v_max_ = 255;  
+    
+   
+    int morph_kernel_size_ = 5;     
+    double min_contour_area_ = 100.0; 
+    
+    cv::Point2f centroid_;        
+    cv::Point2f offset_;          
+    bool beacon_detected_ = false; 
+    bool first_detection_ = true;  
+    bool enabled_ = true;          
+   
+    float filter_alpha_ = 0.8f;   
+    float z_value = 0.0f;            
+    
+    int frame_count_ = 0;        
   
-    cv::Point2f projectTargetPoint(const cv::Mat& H, const cv::Point2f& target_point);
-    cv::Point2f chooseTargetPoint(const cv::Mat& image);
+    void imageCallback(const sensor_msgs::ImageConstPtr& msg);
+    void updateCentroidAndOffset(const cv::Point2f& detected_centroid, const cv::Size& image_size);
 
 public:
     Imgmatching();
+    ~Imgmatching();
     void init(ros::NodeHandle& nh);
     void setCameraParams(float fx, float fy);
     void setHoldPos(float pos);
     void setLandPos(float pos);
-    void setTargetPath(const std::string& path);
-    void disableMatching();                    // 禁用图像匹配
+    void setHSVThresholds(int h_min, int h_max, int s_min, int s_max, int v_min, int v_max);
+    void setMinContourArea(double min_area);
+    void setMorphKernelSize(int kernel_size);
+    void disableMatching();
 
-    int frame_count_ = 0;
     bool isTargetMatched() const;
-    bool isSelectionDone() const { return selection_done_.load(); }
+
     cv::Point2f getTargetCentroid() const;
     cv::Point2f getOffset() const;
-    
-    float fx_; // focal length in x
-    float fy_; // focal length in y
-    float land_pos_z_; // z position of landing target
-    float getCurrentDepth() const;
 
+    float getCurrentDepth() const;
+    float fx_ = 525.0f; 
+    float fy_ = 525.0f; 
+    float land_pos_z_ = 0.0f;  
+    
     template<typename T>
     void getParamWithWarning(ros::NodeHandle& nh, const std::string& param_name, T& param) {
         if (!nh.getParam(param_name, param)) {
-            ROS_WARN_STREAM("Failed to get param: " << param_name);
+            ROS_WARN_STREAM("Failed to get param: " << param_name << ", using default value");
         }
     }
 };

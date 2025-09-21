@@ -511,58 +511,51 @@ void PX4CtrlFSM::fsmSoftLand() {
 }
 
 void PX4CtrlFSM::fsmVisionLand() {
-    // Initialize target only once
     static bool land_initialized = false;
     static ros::Time land_start_time;
-    static bool near_ground = false;
-    static ros::Time ground_detect_time;
 
     if (!land_initialized) {
-        hold_pos_ = pos_;  // Lock x, y
+        hold_pos_ = pos_;  
         land_start_time = ros::Time::now();
         land_initialized = true;
-        near_ground = false;
-        std::cout << "[PX4 FSM]: Soft landing initialized at [" << hold_pos_.x() << ", "
-                  << hold_pos_.y() << ", " << hold_pos_.z() << "]" << std::endl;
+        std::cout << "[PX4 FSM]: HSV beacon landing initialized at [" 
+                  << hold_pos_.x() << ", " << hold_pos_.y() << ", " << hold_pos_.z() << "]" << std::endl;
     }
 
     image_matcher_->setHoldPos(hold_pos_.z()); 
 
-    // Gate any motion until user finishes selection in image view
-    if (image_matcher_ && !image_matcher_->isSelectionDone()) {
-        // Keep holding current position to maintain OFFBOARD setpoints
-        hold_pos_ = pos_;
-        publishPoseSetpoint(hold_pos_);
-        return;
-    }
-
     if (image_matcher_ && image_matcher_->isTargetMatched()) {
-        cv::Point2f centroid_2d = image_matcher_->getTargetCentroid();
-        Eigen::Vector3d centroid(centroid_2d.x, centroid_2d.y, 0.0); 
         hold_pos_ = adjustPositionWithPIControl(image_matcher_->getOffset());
+        
         hold_pos_.z() -= 0.001;
-
+        
+        cv::Point2f offset = image_matcher_->getOffset();
+        std::cout << "[PX4 FSM]: Beacon detected, offset: (" 
+                  << std::fixed << std::setprecision(3) << offset.x << ", " << offset.y 
+                  << ") m, height: " << hold_pos_.z() << " m" << std::endl;
     } else {
-        std::cout << "[PX4 FSM]: No object detected." << std::endl;
+        hold_pos_.z() -= 0.001;
+        
+        static int no_beacon_count = 0;
+        if (++no_beacon_count % 100 == 0) {
+            std::cout << "[PX4 FSM]: No beacon detected, height: " 
+                      << std::fixed << std::setprecision(3) << hold_pos_.z() << " m" << std::endl;
+        }
     }
 
-    // Gradually descend
-    std::cout << "[PX4 FSM]: Current hold position: " << hold_pos_.z() << std::endl;
+ 
     publishPoseSetpoint(hold_pos_);
 
-    // Check PX4's internal land detection
     if (extended_state_.landed_state == mavros_msgs::ExtendedState::LANDED_STATE_ON_GROUND) {
         std::cout << "[PX4 FSM]: Landed detected by PX4. Switching to LANDED." << std::endl;
         land_initialized = false;
+        if (image_matcher_) {
+            image_matcher_->disableMatching();
+            image_matcher_.reset();  
+        }
         changeFSMState(LANDED);
         return;
     }
-
-    // Switch to AUTO.LAND only when Z is steady for a period (touchdown),
-    // avoids yaw jump while still in the air due to estimator noise.
-
-    // if ((hold_pos_.z() - image_matcher_->land_pos_z_) < 1e-6) {
-    //     std::cout << "[PX4 FSM]: Vision becomes blurry. Switching to AUTO.LAND." << std::endl;
 
     if (hasLandedFromZHistory(z_stationary_window_sec_, z_stationary_epsilon_)) {
         std::cout << "[PX4 FSM]: Z stable for " << z_stationary_window_sec_ 
@@ -570,7 +563,28 @@ void PX4CtrlFSM::fsmVisionLand() {
                   << ") -> Switching to AUTO.LAND." << std::endl;
 
         land_initialized = false;
-        if (image_matcher_) image_matcher_->disableMatching();
+        if (image_matcher_) {
+            image_matcher_->disableMatching();
+            image_matcher_.reset();  
+        }
+        changeFSMState(AUTO_LAND);
+        return;
+    }
+
+    // Switch to AUTO.LAND only when Z is steady for a period (touchdown),
+    // avoids yaw jump while still in the air due to estimator noise.
+
+    if ((hold_pos_.z() - image_matcher_->land_pos_z_) < 1e-6) {
+        std::cout << "[PX4 FSM]: Vision becomes blurry. Switching to AUTO.LAND." << std::endl;
+        std::cout << "[PX4 FSM]: Z stable for " << z_stationary_window_sec_ 
+                  << "s (|dz|<" << z_stationary_epsilon_ 
+                  << ") -> Switching to AUTO.LAND." << std::endl;
+
+        land_initialized = false;
+        if (image_matcher_) {
+            image_matcher_->disableMatching();
+            image_matcher_.reset();  // 安全地销毁对象
+        }
         changeFSMState(AUTO_LAND);
         return;
     }
