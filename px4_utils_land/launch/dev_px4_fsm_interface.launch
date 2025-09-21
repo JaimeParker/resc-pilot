@@ -9,7 +9,21 @@
         <param name="camera/fx_" value="562.94" type="double"/>
         <param name="camera/fy_" value="422.21" type="double"/>
 	<param name="camera/use_clache_" value="false" type="bool" />
-	<param name="camera/image_topic" value="/camera/color/image_raw" type="string" />
+	<param name="camera/image_topic" value="/camera/rgb/image_raw" type="string" />
+	
+	<!-- HSV Color Segmentation Parameters for White Beacon Detection -->
+	<param name="hsv/h_min" value="0" type="int"/>
+	<param name="hsv/h_max" value="180" type="int"/>
+	<param name="hsv/s_min" value="0" type="int"/>
+	<param name="hsv/s_max" value="30" type="int"/>
+	<param name="hsv/v_min" value="200" type="int"/>
+	<param name="hsv/v_max" value="255" type="int"/>
+	
+	<!-- Morphology Operation Parameters -->
+	<param name="morphology/kernel_size" value="5" type="int"/>
+	
+	<!-- Detection Parameters -->
+	<param name="detection/min_area" value="100" type="double"/>
     </node>
 
     <node pkg="px4_utils_land" type="px4_fsm_interface_node_land" name="px4_fsm_interface" output="screen">

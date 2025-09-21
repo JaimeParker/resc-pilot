@@ -16,6 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
         cv_bridge
         image_transport 
         sensor_msgs
+        rosbag
 )
 find_package(OpenCV REQUIRED COMPONENTS
         core
@@ -92,3 +93,7 @@ target_link_libraries(test_actuator_ctrl_land ${catkin_LIBRARIES})
 
 add_executable(test_imgmatching example/test_imgmatching.cc)
 target_link_libraries(test_imgmatching ${catkin_LIBRARIES} ${PROJECT_NAME})
+
+# Unified HSV beacon detection test program (supports ROS live, rosbag, and offline)
+add_executable(test_hsv_unified example/test_hsv_unified.cc)
+target_link_libraries(test_hsv_unified ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
