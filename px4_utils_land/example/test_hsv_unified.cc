@@ -50,16 +50,16 @@ private:
     std::string image_topic_;
     
     // HSV参数（默认值用于检测亮白色）
-    int hsv_h_min_ = 0;     // 色调最小值
-    int hsv_h_max_ = 180;   // 色调最大值
-    int hsv_s_min_ = 0;     // 饱和度最小值
-    int hsv_s_max_ = 30;    // 饱和度最大值
-    int hsv_v_min_ = 200;   // 亮度最小值
-    int hsv_v_max_ = 255;   // 亮度最大值
+    int hsv_h_min_ = 40;     // 色调最小值
+    int hsv_h_max_ = 70;     // 色调最大值
+    int hsv_s_min_ = 100;    // 饱和度最小值
+    int hsv_s_max_ = 255;    // 饱和度最大值
+    int hsv_v_min_ = 100;    // 亮度最小值
+    int hsv_v_max_ = 255;    // 亮度最大值
     
     // 图像处理参数
     int morph_kernel_size_ = 5;
-    double min_contour_area_ = 100.0;
+    double min_contour_area_ = 80.0;
     
     // 显示控制
     bool show_original_ = true;

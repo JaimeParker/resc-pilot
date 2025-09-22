@@ -19,6 +19,9 @@ void PX4CtrlFSM::init(ros::NodeHandle &nh) {
     getParamWithWarning(nh, "px4fsm/max_attitude_degree", max_attitude_);
     max_attitude_ *= deg2rad_;
 
+    getParamWithWarning(nh, "px4fsm/kp", kp_);
+    getParamWithWarning(nh, "px4fsm/ki", ki_);
+
     getParamWithWarning(nh, "px4fsm/use_rl_topic", use_rl_topic_);
     getParamWithWarning(nh, "px4fsm/rl_cmd_topic", rl_cmd_topic_);
     getParamWithWarning(nh, "px4fsm/land_cmd_topic", land_cmd_topic_);
@@ -1010,8 +1013,6 @@ Eigen::Vector3d PX4CtrlFSM::adjustPositionWithPIControl(const cv::Point2f& offse
     static Eigen::Vector2d integral_error(0.0, 0.0);
     static ros::Time last_update_time;
     
-    const double kp = 0.002;  // Proportional gain
-    const double ki = 0.0001; // Integral gain
     const double max_integral = 1.0; // Anti-windup limit
     const double max_correction = 0.5; // Maximum position correction per cycle
     
@@ -1038,9 +1039,9 @@ Eigen::Vector3d PX4CtrlFSM::adjustPositionWithPIControl(const cv::Point2f& offse
     integral_error += error * dt;
     integral_error.x() = std::max(-max_integral, std::min(max_integral, integral_error.x()));
     integral_error.y() = std::max(-max_integral, std::min(max_integral, integral_error.y()));
-    
-    Eigen::Vector2d body_correction = kp * error + ki * integral_error;
-    
+
+    Eigen::Vector2d body_correction = kp_ * error + ki_ * integral_error;
+
     // Limit correction magnitude
     double correction_magnitude = body_correction.norm();
     if (correction_magnitude > max_correction) {
