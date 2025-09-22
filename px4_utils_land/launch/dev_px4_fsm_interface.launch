@@ -22,14 +22,21 @@
         <param name="hsv/v_max" value="255" type="int"/> -->
 
         <!-- HSV Color Segmentation Parameters for Red Beacon Detection -->
-        <param name="hsv/h_min" value="0" type="int"/>
-        <param name="hsv/h_max" value="10" type="int"/>
-        <param name="hsv/s_min" value="200" type="int"/>  
+        <param name="hsv/h_min" value="165" type="int"/>
+        <param name="hsv/h_max" value="15" type="int"/>
+        <param name="hsv/s_min" value="100" type="int"/>  
         <param name="hsv/s_max" value="255" type="int"/>
-        <param name="hsv/v_min" value="240" type="int"/>  
+        <param name="hsv/v_min" value="100" type="int"/>  
         <param name="hsv/v_max" value="255" type="int"/>
 
-        
+        <!-- HSV Color Segmentation Parameters for Yellow Beacon Detection -->
+        <!-- <param name="hsv/h_min" value="10" type="int"/>
+        <param name="hsv/h_max" value="40" type="int"/>
+        <param name="hsv/s_min" value="100" type="int"/>
+        <param name="hsv/s_max" value="255" type="int"/>
+        <param name="hsv/v_min" value="100" type="int"/>
+        <param name="hsv/v_max" value="255" type="int"/> -->
+
         <!-- Morphology Operation Parameters -->
         <param name="morphology/kernel_size" value="5" type="int"/>
         

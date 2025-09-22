@@ -50,11 +50,11 @@ private:
     std::string image_topic_;
     
     // HSV参数（默认值用于检测亮白色）
-    int hsv_h_min_ = 40;     // 色调最小值
-    int hsv_h_max_ = 70;     // 色调最大值
+    int hsv_h_min_ = 10;     // 色调最小值
+    int hsv_h_max_ = 40;     // 色调最大值
     int hsv_s_min_ = 100;    // 饱和度最小值
     int hsv_s_max_ = 255;    // 饱和度最大值
-    int hsv_v_min_ = 100;    // 亮度最小值
+    int hsv_v_min_ = 50;    // 亮度最小值
     int hsv_v_max_ = 255;    // 亮度最大值
     
     // 图像处理参数
@@ -289,8 +289,17 @@ private:
         cv::cvtColor(current_frame_, hsv, cv::COLOR_BGR2HSV);
         
         // 创建HSV阈值掩膜
-        cv::inRange(hsv, cv::Scalar(hsv_h_min_, hsv_s_min_, hsv_v_min_), 
+        if (hsv_h_min_ <= hsv_h_max_) {
+            cv::inRange(hsv, cv::Scalar(hsv_h_min_, hsv_s_min_, hsv_v_min_), 
                         cv::Scalar(hsv_h_max_, hsv_s_max_, hsv_v_max_), mask);
+        } else {
+            cv::Mat lower_mask, upper_mask;
+            cv::inRange(hsv, cv::Scalar(0, hsv_s_min_, hsv_v_min_), 
+                        cv::Scalar(hsv_h_max_, hsv_s_max_, hsv_v_max_), lower_mask);
+            cv::inRange(hsv, cv::Scalar(hsv_h_min_, hsv_s_min_, hsv_v_min_), 
+                        cv::Scalar(180, hsv_s_max_, hsv_v_max_), upper_mask);
+            cv::bitwise_or(lower_mask, upper_mask, mask);
+        }
         
         // 形态学操作去除噪声
         if (morph_kernel_size_ > 0) {
