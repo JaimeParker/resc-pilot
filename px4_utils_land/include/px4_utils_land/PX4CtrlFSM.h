@@ -87,6 +87,8 @@ private:
     double fence_x_ = 10.0;
     double fence_y_ = 10.0;
     double fence_z_ = 2.0;
+    double kp_ = 0.002;  
+    double ki_ = 0.0001; 
     double ground_height_ = 0.0;
     double fence_offset_ = 0.5;
     double max_attitude_ = 37.5 * deg2rad_;

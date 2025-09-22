@@ -5,31 +5,42 @@
         <param name="px4fsm/fence_x" value="20.0" type="double"/>
         <param name="px4fsm/fence_y" value="20.0" type="double"/>
         <param name="px4fsm/fence_z" value="10.0" type="double"/>
+        <param name="px4fsm/kp" value="0.002" type="double"/>
+        <param name="px4fsm/ki" value="0.0001" type="double"/>
         <param name="px4fsm/land_cmd_topic" value="/trigger_landing" />
         <param name="camera/fx_" value="562.94" type="double"/>
         <param name="camera/fy_" value="422.21" type="double"/>
-	<param name="camera/use_clache_" value="false" type="bool" />
-	<param name="camera/image_topic" value="/camera/rgb/image_raw" type="string" />
-	
-	<!-- HSV Color Segmentation Parameters for White Beacon Detection -->
-	<param name="hsv/h_min" value="0" type="int"/>
-	<param name="hsv/h_max" value="180" type="int"/>
-	<param name="hsv/s_min" value="0" type="int"/>
-	<param name="hsv/s_max" value="30" type="int"/>
-	<param name="hsv/v_min" value="200" type="int"/>
-	<param name="hsv/v_max" value="255" type="int"/>
-	
-	<!-- Morphology Operation Parameters -->
-	<param name="morphology/kernel_size" value="5" type="int"/>
-	
-	<!-- Detection Parameters -->
-	<param name="detection/min_area" value="100" type="double"/>
+        <param name="camera/use_clache_" value="false" type="bool" />
+        <param name="camera/image_topic" value="/camera/rgb/image_raw" type="string" />
+        
+        <!-- HSV Color Segmentation Parameters for White Beacon Detection -->
+        <!-- <param name="hsv/h_min" value="0" type="int"/>
+        <param name="hsv/h_max" value="180" type="int"/>
+        <param name="hsv/s_min" value="0" type="int"/>
+        <param name="hsv/s_max" value="30" type="int"/>
+        <param name="hsv/v_min" value="200" type="int"/>
+        <param name="hsv/v_max" value="255" type="int"/> -->
+
+        <!-- HSV Color Segmentation Parameters for Red Beacon Detection -->
+        <param name="hsv/h_min" value="0" type="int"/>
+        <param name="hsv/h_max" value="10" type="int"/>
+        <param name="hsv/s_min" value="200" type="int"/>  
+        <param name="hsv/s_max" value="255" type="int"/>
+        <param name="hsv/v_min" value="240" type="int"/>  
+        <param name="hsv/v_max" value="255" type="int"/>
+
+        
+        <!-- Morphology Operation Parameters -->
+        <param name="morphology/kernel_size" value="5" type="int"/>
+        
+        <!-- Detection Parameters -->
+        <param name="detection/min_area" value="50" type="double"/>
     </node>
 
     <node pkg="px4_utils_land" type="px4_fsm_interface_node_land" name="px4_fsm_interface" output="screen">
         <param name="land_topic" value="/trigger_landing" />
     </node>
     
-      <node name="rviz" pkg="rviz" type="rviz" args="-d $(find px4_utils_land)/launch/test.rviz" required="true" />
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find px4_utils_land)/launch/test.rviz" required="true" />
       
 </launch>
