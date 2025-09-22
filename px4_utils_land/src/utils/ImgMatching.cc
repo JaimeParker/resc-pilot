@@ -79,27 +79,32 @@ void Imgmatching::imageCallback(const sensor_msgs::ImageConstPtr& msg) {
     try {
         cv::Mat frame = cv_bridge::toCvShare(msg, "bgr8")->image;
         
-        // HSV颜色空间分割检测亮白色信标
         cv::Mat hsv, mask, result;
         cv::cvtColor(frame, hsv, cv::COLOR_BGR2HSV);
         
-        // 创建HSV阈值掩膜
-        cv::inRange(hsv, cv::Scalar(hsv_h_min_, hsv_s_min_, hsv_v_min_), 
+        if (hsv_h_min_ <= hsv_h_max_) {
+            cv::inRange(hsv, cv::Scalar(hsv_h_min_, hsv_s_min_, hsv_v_min_), 
                         cv::Scalar(hsv_h_max_, hsv_s_max_, hsv_v_max_), mask);
+        } else {
+            cv::Mat lower_mask, upper_mask;
+            cv::inRange(hsv, cv::Scalar(0, hsv_s_min_, hsv_v_min_), 
+                        cv::Scalar(hsv_h_max_, hsv_s_max_, hsv_v_max_), lower_mask);
+            cv::inRange(hsv, cv::Scalar(hsv_h_min_, hsv_s_min_, hsv_v_min_), 
+                        cv::Scalar(180, hsv_s_max_, hsv_v_max_), upper_mask);
+            cv::bitwise_or(lower_mask, upper_mask, mask);
+        }
         
-        // 形态学操作去除噪声
+        
         cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, 
                                                   cv::Size(morph_kernel_size_, morph_kernel_size_));
         cv::morphologyEx(mask, mask, cv::MORPH_OPEN, kernel);
         cv::morphologyEx(mask, mask, cv::MORPH_CLOSE, kernel);
         
-        // 寻找轮廓
         std::vector<std::vector<cv::Point>> contours;
         std::vector<cv::Vec4i> hierarchy;
         cv::findContours(mask, contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
         
         if (!contours.empty()) {
-            // 找到最大面积的轮廓作为信标
             double max_area = 0;
             int max_contour_idx = -1;
             
