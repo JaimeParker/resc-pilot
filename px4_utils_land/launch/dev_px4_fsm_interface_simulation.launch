@@ -11,8 +11,8 @@
         <param name="camera/fx_" value="562.94" type="double"/>
         <param name="camera/fy_" value="422.21" type="double"/>
         <param name="camera/use_clache_" value="false" type="bool" />
-        <param name="camera/image_topic" value="/camera/color/image_raw" type="string" />
-        
+        <param name="camera/image_topic" value="/camera/rgb/image_raw" type="string" />
+    
         <!-- HSV Color Segmentation Parameters for White Beacon Detection -->
         <!-- <param name="hsv/h_min" value="0" type="int"/>
         <param name="hsv/h_max" value="180" type="int"/>
@@ -22,26 +22,26 @@
         <param name="hsv/v_max" value="255" type="int"/> -->
 
         <!-- HSV Color Segmentation Parameters for Red Beacon Detection -->
-        <param name="hsv/h_min" value="165" type="int"/>
+        <param name="hsv/h_min" value="0" type="int"/>
         <param name="hsv/h_max" value="180" type="int"/>
-        <param name="hsv/s_min" value="100" type="int"/>  
+        <param name="hsv/s_min" value="200" type="int"/>  
         <param name="hsv/s_max" value="255" type="int"/>
-        <param name="hsv/v_min" value="100" type="int"/>  
+        <param name="hsv/v_min" value="200" type="int"/>  
         <param name="hsv/v_max" value="255" type="int"/>
 
         <!-- HSV Color Segmentation Parameters for Yellow Beacon Detection -->
-        <!-- <param name="hsv/h_min" value="10" type="int"/>
-        <param name="hsv/h_max" value="40" type="int"/>
-        <param name="hsv/s_min" value="100" type="int"/>
+        <!-- <param name="hsv/h_min" value="165" type="int"/>
+        <param name="hsv/h_max" value="180" type="int"/>
+        <param name="hsv/s_min" value="140" type="int"/>
         <param name="hsv/s_max" value="255" type="int"/>
-        <param name="hsv/v_min" value="100" type="int"/>
+        <param name="hsv/v_min" value="200" type="int"/>
         <param name="hsv/v_max" value="255" type="int"/> -->
 
         <!-- auto mission params -->
         <param name="px4fsm/enable_auto_mission" value="true" type="bool"/>
-        <param name="px4fsm/auto_mission_target_x" value="0.0" type="double"/>
-        <param name="px4fsm/auto_mission_target_y" value="0.0" type="double"/>
-        <param name="px4fsm/auto_mission_target_z" value="1.5" type="double"/>
+        <param name="px4fsm/auto_mission_target_x" value="-0.5" type="double"/>
+        <param name="px4fsm/auto_mission_target_y" value="-2.5" type="double"/>
+        <param name="px4fsm/auto_mission_target_z" value="5.0" type="double"/>
 
         <!-- Morphology Operation Parameters -->
         <param name="morphology/kernel_size" value="5" type="int"/>

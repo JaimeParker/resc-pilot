@@ -26,6 +26,14 @@ void PX4CtrlFSM::init(ros::NodeHandle &nh) {
     getParamWithWarning(nh, "px4fsm/rl_cmd_topic", rl_cmd_topic_);
     getParamWithWarning(nh, "px4fsm/land_cmd_topic", land_cmd_topic_);
 
+    getParamWithWarning(nh, "px4fsm/enable_auto_mission", enable_auto_mission_);
+    getParamWithWarning(nh, "px4fsm/auto_mission_target_x", auto_mission_target_x_);
+    getParamWithWarning(nh, "px4fsm/auto_mission_target_y", auto_mission_target_y_);
+    getParamWithWarning(nh, "px4fsm/auto_mission_target_z", auto_mission_target_z_);
+    
+    // Set auto mission target
+    auto_mission_target_ << auto_mission_target_x_, auto_mission_target_y_, auto_mission_target_z_;
+
     offb_mode_setter_.request.custom_mode = "OFFBOARD";
     arm_cmd_.request.value = true;
 
@@ -153,6 +161,11 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
             } else if (traj_cmd_received_ && in_geo_fence_ && (distance_to_target > target_thresh_)) {
                 last_traj_cmd_time_ = ros::Time::now();
                 changeFSMState(TRAJ_CMD);
+            } else if (enable_auto_mission_ && !auto_mission_started_) {
+                std::cout << "\033[1;32m[PX4 FSM]: Starting auto mission to target [" 
+                          << auto_mission_target_.transpose() << "]\033[0m" << std::endl;
+                auto_mission_started_ = true;
+                changeFSMState(AUTO_MISSION);
             } else {
                 publishPoseSetpoint(hold_pos_, hold_yaw_);
             }
@@ -225,6 +238,30 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
 
             break;
         }
+
+        case AUTO_MISSION:
+            if (!in_geo_fence_) {
+                std::cout << "\033[1;33m[PX4 FSM]: Out of geo fence! Returning to HOLD.\033[0m" << std::endl;
+                geoFenceClamp(pos_);
+                hold_pos_ = pos_;
+                hold_yaw_ = att_.z();
+                changeFSMState(HOLD);
+                break;
+            }
+
+            // Check if reached target
+            if (isReachedTarget(auto_mission_target_)) {
+                std::cout << "\033[1;32m[PX4 FSM]: Reached auto mission target, starting landing.\033[0m" << std::endl;
+                hold_pos_ = pos_;
+                hold_yaw_ = att_.z();
+                changeFSMState(SOFT_LAND);
+            } else {
+                publishPoseSetpoint(auto_mission_target_);
+                Eigen::Vector3d distance_vec = auto_mission_target_ - pos_;
+                std::cout << "[PX4 FSM]: Flying to auto mission target, distance: " 
+                          << std::fixed << std::setprecision(2) << distance_vec.norm() << " m" << std::endl;
+            }
+            break;
 
         case SOFT_LAND:
             //TODO(zhiyuan 7_16):create a state & write the alignment logic
