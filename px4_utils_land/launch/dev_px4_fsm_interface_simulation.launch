@@ -5,14 +5,14 @@
         <param name="px4fsm/fence_x" value="20.0" type="double"/>
         <param name="px4fsm/fence_y" value="20.0" type="double"/>
         <param name="px4fsm/fence_z" value="10.0" type="double"/>
-        <param name="px4fsm/kp" value="0.002" type="double"/>
+        <param name="px4fsm/kp" value="0.004" type="double"/>
         <param name="px4fsm/ki" value="0.0001" type="double"/>
         <param name="px4fsm/land_cmd_topic" value="/trigger_landing" />
         <param name="camera/fx_" value="562.94" type="double"/>
         <param name="camera/fy_" value="422.21" type="double"/>
         <param name="camera/use_clache_" value="false" type="bool" />
-        <param name="camera/image_topic" value="/camera/color/image_raw" type="string" />
-        
+        <param name="camera/image_topic" value="/camera/rgb/image_raw" type="string" />
+    
         <!-- HSV Color Segmentation Parameters for White Beacon Detection -->
         <!-- <param name="hsv/h_min" value="0" type="int"/>
         <param name="hsv/h_max" value="180" type="int"/>
@@ -39,9 +39,9 @@
 
         <!-- auto mission params -->
         <param name="px4fsm/enable_auto_mission" value="true" type="bool"/>
-        <param name="px4fsm/auto_mission_target_x" value="0.0" type="double"/>
-        <param name="px4fsm/auto_mission_target_y" value="0.0" type="double"/>
-        <param name="px4fsm/auto_mission_target_z" value="1.5" type="double"/>
+        <param name="px4fsm/auto_mission_target_x" value="0.75" type="double"/>
+        <param name="px4fsm/auto_mission_target_y" value="-2.5" type="double"/>
+        <param name="px4fsm/auto_mission_target_z" value="5.0" type="double"/>
 
         <!-- Morphology Operation Parameters -->
         <param name="morphology/kernel_size" value="5" type="int"/>

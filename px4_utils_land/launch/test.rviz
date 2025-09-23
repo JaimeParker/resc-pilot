@@ -8,6 +8,8 @@ Panels:
         - /Planning1
         - /Mapping1
         - /Mapping1/simulation_map1/Autocompute Value Bounds1
+        - /depth1
+        - /camera_pose1
       Splitter Ratio: 0.5
     Tree Height: 341
   - Class: rviz/Selection
@@ -188,7 +190,7 @@ Visualization Manager:
           Unreliable: false
           Use Fixed Frame: true
           Use rainbow: true
-          Value: false
+          Value: true
         - Alpha: 1
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
@@ -233,7 +235,7 @@ Visualization Manager:
       Name: Simulation
     - Class: rviz/Image
       Enabled: true
-      Image Topic: /camera/color/image_raw
+      Image Topic: /camera/rgb/image_raw
       Max Value: 1
       Median window: 5
       Min Value: 0
@@ -275,7 +277,7 @@ Visualization Manager:
         Shaft Length: 1
         Shaft Radius: 0.05000000074505806
         Value: Axes
-      Topic: /camera_odom_planner
+      Topic: /mavros/local_position/odom
       Unreliable: false
       Value: true
   Enabled: true
@@ -361,7 +363,7 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 1180
-  X: 1164
-  Y: 173
+  X: 1286
+  Y: 107
   depth:
     collapsed: false
