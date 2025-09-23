@@ -50,11 +50,11 @@ private:
     std::string image_topic_;
     
     // HSV参数（默认值用于检测亮白色）
-    int hsv_h_min_ = 10;     // 色调最小值
-    int hsv_h_max_ = 40;     // 色调最大值
-    int hsv_s_min_ = 100;    // 饱和度最小值
+    int hsv_h_min_ = 175;     // 色调最小值
+    int hsv_h_max_ = 5;     // 色调最大值
+    int hsv_s_min_ = 150;    // 饱和度最小值
     int hsv_s_max_ = 255;    // 饱和度最大值
-    int hsv_v_min_ = 50;    // 亮度最小值
+    int hsv_v_min_ = 100;    // 亮度最小值
     int hsv_v_max_ = 255;    // 亮度最大值
     
     // 图像处理参数

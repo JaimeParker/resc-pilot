@@ -31,8 +31,8 @@ private:
     // static std::uniform_real_distribution<double> rtk_uniform_dist_; 
 
     /* flags */
-    enum FSM_EXEC_STATE { INIT, ARM, OFFBOARD, TAKEOFF, HOLD, RL_MOTION, TRAJ_CMD, SOFT_LAND, AUTO_LAND, DISARM, LANDED, EDIT};
-    std::string state_str_[12] = {"INIT", "ARM", "OFFBOARD", "TAKEOFF", "HOLD", "RL_MOTION", "TRAJ_CMD", "SOFT_LAND", "AUTO_LAND", "DISARM", "LANDED", "EDIT"};
+    enum FSM_EXEC_STATE { INIT, ARM, OFFBOARD, TAKEOFF, HOLD, RL_MOTION, TRAJ_CMD, AUTO_MISSION, SOFT_LAND, AUTO_LAND, DISARM, LANDED, EDIT};
+    std::string state_str_[13] = {"INIT", "ARM", "OFFBOARD", "TAKEOFF", "HOLD", "RL_MOTION", "TRAJ_CMD", "AUTO_MISSION", "SOFT_LAND", "AUTO_LAND", "DISARM", "LANDED", "EDIT"};
 
     /* ros utils */
     ros::Timer exec_timer_;
@@ -80,6 +80,11 @@ private:
     bool init_pos_set_ = false;
     ros::Time last_request_time_;
 
+    /* auto mission */
+    bool enable_auto_mission_ = false;
+    Eigen::Vector3d auto_mission_target_;
+    bool auto_mission_started_ = false;
+
     /* params */
     double target_thresh_ = 0.25;
     double exec_period_ = 0.01;
@@ -109,6 +114,9 @@ private:
     std::string att_target_topic_ = "/mavros/setpoint_raw/attitude";
     std::string land_cmd_topic_ = "/trigger_landing";
     std::string extended_state_topic_ = "/mavros/extended_state";
+    double auto_mission_target_x_ = 0.0;
+    double auto_mission_target_y_ = 0.0;
+    double auto_mission_target_z_ = 1.0;
 
     /* utils */
     std::vector<Eigen::Vector3d> init_pos_buffer_;

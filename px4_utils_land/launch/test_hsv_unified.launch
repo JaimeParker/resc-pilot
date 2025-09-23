@@ -1,0 +1,60 @@
+<!-- 
+HSV Unified Tester Launch File
+测试HSV颜色空间信标检测的统一测试程序
+
+支持三种运行模式：
+1. ROS实时模式：订阅实时图像话题
+2. Rosbag回放模式：从rosbag文件读取图像
+3. 离线文件模式：处理图片、视频文件或摄像头
+
+使用示例：
+1. ROS实时模式:
+   roslaunch px4_utils_land test_hsv_unified.launch
+
+2. Rosbag回放模式:
+   roslaunch px4_utils_land test_hsv_unified.launch use_rosbag:=true rosbag_path:=/path/to/your.bag
+
+3. 离线文件模式 (图片):
+   roslaunch px4_utils_land test_hsv_unified.launch use_offline:=true file_path:=/path/to/image.jpg
+
+4. 离线文件模式 (视频):
+   roslaunch px4_utils_land test_hsv_unified.launch use_offline:=true file_path:=/path/to/video.mp4
+
+5. 摄像头模式:
+   roslaunch px4_utils_land test_hsv_unified.launch use_offline:=true file_path:=0
+-->
+
+<launch>
+    
+    <!-- ========================= 启动参数定义 ========================= -->
+    
+    <!-- 运行模式参数 -->
+    <arg name="use_rosbag" default="false" doc="Enable rosbag replay mode"/>
+    <arg name="use_offline" default="false" doc="Enable offline file processing mode"/>
+    
+    <!-- 文件路径参数 -->
+    <arg name="rosbag_path" default="/home/zhiyuan-yang/Videos/DroneLanding-bag/rgb-indoor-green-lamp.bag" 
+         doc="Path to rosbag file (for rosbag mode)"/>
+    <arg name="file_path" default="" 
+         doc="Path to image/video file or camera ID (for offline mode)"/>
+    <arg name="image_topic" default="/camera/color/image_raw" 
+         doc="ROS image topic name"/>
+    
+    <!-- ========================= HSV检测参数 ========================= -->
+    <!-- 红色信标默认参数 (可根据需要调整为白色或绿色信标参数) -->
+    <arg name="hsv_h_min" default="175" doc="HSV Hue minimum value (0-179)"/>
+    <arg name="hsv_h_max" default="5" doc="HSV Hue maximum value (0-179)"/>
+    <arg name="hsv_s_min" default="150" doc="HSV Saturation minimum value (0-255)"/>
+    <arg name="hsv_s_max" default="255" doc="HSV Saturation maximum value (0-255)"/>
+    <arg name="hsv_v_min" default="100" doc="HSV Value minimum value (0-255)"/>
+    <arg name="hsv_v_max" default="255" doc="HSV Value maximum value (0-255)"/>
+    
+    <!-- ========================= 图像处理参数 ========================= -->
+    <arg name="morph_kernel_size" default="5" doc="Morphological operation kernel size (1-20)"/>
+    <arg name="min_contour_area" default="80.0" doc="Minimum contour area threshold (pixels)"/>
+    
+    
+        
+    </node>
+
+</launch>
