@@ -39,8 +39,8 @@
 
         <!-- auto mission params -->
         <param name="px4fsm/enable_auto_mission" value="true" type="bool"/>
-        <param name="px4fsm/auto_mission_target_x" value="-0.5" type="double"/>
-        <param name="px4fsm/auto_mission_target_y" value="-2.5" type="double"/>
+        <param name="px4fsm/auto_mission_target_x" value="5.0" type="double"/>
+        <param name="px4fsm/auto_mission_target_y" value="5.0" type="double"/>
         <param name="px4fsm/auto_mission_target_z" value="5.0" type="double"/>
 
         <!-- Morphology Operation Parameters -->
@@ -54,6 +54,6 @@
         <param name="land_topic" value="/trigger_landing" />
     </node>
     
-    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find px4_utils_land)/launch/test.rviz" required="true" />
+    <!--node name="rviz" pkg="rviz" type="rviz" args="-d $(find px4_utils_land)/launch/test.rviz" required="true" /-->
       
 </launch>

@@ -156,12 +156,25 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
             Eigen::Vector3d target_pos(quad_pos_cmd_.position.x, quad_pos_cmd_.position.y, quad_pos_cmd_.position.z);
             double distance_to_target = (target_pos - pos_).norm();
             // any state that wants to change to hold must redefine hold_pos_
-            if (use_rl_ && motion_smooth_ && in_geo_fence_) {
-                changeFSMState(RL_MOTION);
-            } else if (traj_cmd_received_ && in_geo_fence_ && (distance_to_target > target_thresh_)) {
+            if (!auto_mission_started_) {
+                geometry_msgs::PoseStamped goal_msg;
+                goal_msg.header.stamp = ros::Time::now();
+                goal_msg.header.frame_id = "map";
+                goal_msg.pose.position.x = auto_mission_target_.x();
+                goal_msg.pose.position.y = auto_mission_target_.y();
+                goal_msg.pose.position.z = auto_mission_target_.z();
+                goal_msg.pose.orientation.w = 1.0;
+                nav_goal_pub_.publish(goal_msg);
+                auto_mission_started_ = true;
+                std::cout << "[PX4 FSM]: Published auto-mission target to ego-planner: [" 
+                            << auto_mission_target_.x() << ", " << auto_mission_target_.y() 
+                            << ", " << auto_mission_target_.z() << "]" << std::endl;
+            }
+            
+            if (traj_cmd_received_ && in_geo_fence_ && (distance_to_target > target_thresh_) && auto_mission_started_) {
                 last_traj_cmd_time_ = ros::Time::now();
                 changeFSMState(TRAJ_CMD);
-            } else if (enable_auto_mission_ && !auto_mission_started_) {
+            } else if (!auto_mission_started_ && enable_auto_mission_) {
                 std::cout << "\033[1;32m[PX4 FSM]: Starting auto mission to target [" 
                           << auto_mission_target_.transpose() << "]\033[0m" << std::endl;
                 auto_mission_started_ = true;
@@ -213,19 +226,22 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
                 break;
             }
             // get the distance to the target
+            Eigen::Vector3d mission_target_pos = auto_mission_target_;
+            double mission_distance = (mission_target_pos - pos_).norm();
+            
             Eigen::Vector3d target_pos(quad_pos_cmd_.position.x, quad_pos_cmd_.position.y, quad_pos_cmd_.position.z);
             double distance_to_target = (target_pos - pos_).norm();
-            printf("[PX4 FSM]: Distance to target: %.2f m\n", distance_to_target);
-
-            if ((distance_to_target > target_thresh_/2) && traj_cmd_received_ && ros::Time::now() - last_traj_cmd_time_ < ros::Duration(traj_cmd_timeout_)) {
+            printf("[PX4 FSM]: Distance to mission target: %.2f m, traj distance: %.2f m\n", mission_distance, distance_to_target);
+            // if ((mission_distance > target_thresh_ / 2) && traj_cmd_received_ && ros::Time::now() - last_traj_cmd_time_ < ros::Duration(traj_cmd_timeout_)) {
+            if ((mission_distance > target_thresh_) && traj_cmd_received_ && ros::Time::now() - last_traj_cmd_time_ < ros::Duration(traj_cmd_timeout_)) {
                 publishTrajSetpoint();
             } else {
-                if (distance_to_target < target_thresh_/2) {
+                if (mission_distance < target_thresh_) {
                     traj_cmd_received_ = false;
-                    ROS_INFO_STREAM("[PX4 FSM] traj_cmd_received_ set to false (arrived target)");
+                    std::cout << "\033[1;32m[PX4 FSM]: Reached mission target, switching to HOLD then SOFT_LAND.\033[0m" << std::endl;
                     hold_pos_ = pos_;
                     hold_yaw_ = att_.z();
-                    changeFSMState(HOLD);
+                    changeFSMState(SOFT_LAND);
                 } else {
                     // not reach the target yet, but planner sent no traj，set traj_cmd_received_ false，wait planner 
                     traj_cmd_received_ = false;

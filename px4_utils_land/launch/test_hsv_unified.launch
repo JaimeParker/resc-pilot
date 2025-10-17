@@ -42,19 +42,16 @@ HSV Unified Tester Launch File
     
     <!-- ========================= HSV检测参数 ========================= -->
     <!-- 红色信标默认参数 (可根据需要调整为白色或绿色信标参数) -->
-    <arg name="hsv_h_min" default="175" doc="HSV Hue minimum value (0-179)"/>
-    <arg name="hsv_h_max" default="5" doc="HSV Hue maximum value (0-179)"/>
-    <arg name="hsv_s_min" default="150" doc="HSV Saturation minimum value (0-255)"/>
-    <arg name="hsv_s_max" default="255" doc="HSV Saturation maximum value (0-255)"/>
-    <arg name="hsv_v_min" default="100" doc="HSV Value minimum value (0-255)"/>
+    <arg name="hsv_h_min" default="0" doc="HSV Hue minimum value (0-179)"/>
+    <arg name="hsv_h_max" default="180" doc="HSV Hue maximum value (0-179)"/>
+    <arg name="hsv_s_min" default="0" doc="HSV Saturation minimum value (0-255)"/>
+    <arg name="hsv_s_max" default="10" doc="HSV Saturation maximum value (0-255)"/>
+    <arg name="hsv_v_min" default="200" doc="HSV Value minimum value (0-255)"/>
     <arg name="hsv_v_max" default="255" doc="HSV Value maximum value (0-255)"/>
     
     <!-- ========================= 图像处理参数 ========================= -->
     <arg name="morph_kernel_size" default="5" doc="Morphological operation kernel size (1-20)"/>
     <arg name="min_contour_area" default="80.0" doc="Minimum contour area threshold (pixels)"/>
-    
-    
-        
-    </node>
+  
 
 </launch>
