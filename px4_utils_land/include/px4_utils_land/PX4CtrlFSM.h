@@ -13,6 +13,8 @@
 #include <mavros_msgs/AttitudeTarget.h>
 #include <mavros_msgs/PositionTarget.h>
 #include <mavros_msgs/ExtendedState.h>
+#include <mavros_msgs/GlobalPositionTarget.h>
+#include <sensor_msgs/NavSatFix.h>
 #include <std_msgs/Bool.h>
 #include <std_msgs/Float32.h>
 #include <quadrotor_msgs/PositionCommand.h>
@@ -47,9 +49,12 @@ private:
     ros::Subscriber land_cmd_sub_;
     ros::Subscriber auto_land_cmd_sub_;
     ros::Subscriber extended_state_sub_;
+    ros::Subscriber global_position_sub_;
+    ros::Subscriber global_setpoint_sub_;
     ros::Publisher pose_setpoint_pub_;
     ros::Publisher att_target_pub_;
     ros::Publisher traj_target_pub_;
+    ros::Publisher global_setpoint_pub_;
     ros::Rate rate_ = ros::Rate(20);
     ros::Time last_traj_cmd_time_;
 
@@ -62,6 +67,15 @@ private:
     quadrotor_msgs::PositionCommand quad_pos_cmd_;
     mavros_msgs::PositionTarget traj_target_;
     mavros_msgs::ExtendedState extended_state_;
+    sensor_msgs::NavSatFix current_global_position_;
+    mavros_msgs::GlobalPositionTarget target_global_position_;
+    bool global_position_received_ = false;
+    bool global_setpoint_received_ = false;
+    // Optional initial global setpoint configuration (from launch/param)
+    bool publish_global_setpoint_ = false;
+    double global_setpoint_lat_ = 0.0;
+    double global_setpoint_lon_ = 0.0;
+    double global_setpoint_alt_ = 0.0;
 
     /* state */
     FSM_EXEC_STATE exec_state_ = INIT;
@@ -195,6 +209,8 @@ public:
     bool triggerPX4Disarm();
     void landCmdCallback(const std_msgs::Bool::ConstPtr &msg);
     void extendedStateCallback(const mavros_msgs::ExtendedState::ConstPtr &msg);
+    void globalPositionCallback(const sensor_msgs::NavSatFix::ConstPtr &msg);
+    void globalSetpointCallback(const mavros_msgs::GlobalPositionTarget::ConstPtr &msg);
 
     void enterEditMode();
     void exitEditMode();
@@ -211,6 +227,9 @@ public:
     void initGoalMarker();
     void publishRefinedGoalMarker();
     Eigen::Vector3d adjustPositionWithPIControl(const cv::Point2f& offset);
+    double calculateGPSDistance(const sensor_msgs::NavSatFix& pos1, const mavros_msgs::GlobalPositionTarget& pos2);
+    Eigen::Vector2d calculateGPSVector(const sensor_msgs::NavSatFix& current, const mavros_msgs::GlobalPositionTarget& target);
+    bool isGPSPositionAccurate(double threshold_meters = 0.1);
     
 
     template<typename T>

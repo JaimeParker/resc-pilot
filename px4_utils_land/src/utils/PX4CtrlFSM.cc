@@ -47,11 +47,14 @@ void PX4CtrlFSM::init(ros::NodeHandle &nh) {
     rl_cmd_sub_ = nh.subscribe(rl_cmd_topic_, 1, &PX4CtrlFSM::rlCmdCallback, this);
     land_cmd_sub_ = nh.subscribe(land_cmd_topic_, 1, &PX4CtrlFSM::landCmdCallback, this);
     extended_state_sub_ = nh.subscribe("/mavros/extended_state", 10, &PX4CtrlFSM::extendedStateCallback, this);
+    global_position_sub_ = nh.subscribe("/mavros/global_position/global", 10, &PX4CtrlFSM::globalPositionCallback, this);
+    global_setpoint_sub_ = nh.subscribe("/mavros/setpoint_raw/global", 10, &PX4CtrlFSM::globalSetpointCallback, this);
 
     // pose setpoint is high level, while traj target is mid level
     pose_setpoint_pub_ = nh.advertise<geometry_msgs::PoseStamped>(pose_setpoint_topic_, 1);
     traj_target_pub_ = nh.advertise<mavros_msgs::PositionTarget>(traj_target_topic_, 1);
     att_target_pub_ = nh.advertise<mavros_msgs::AttitudeTarget>(att_target_topic_, 1);
+    global_setpoint_pub_ = nh.advertise<mavros_msgs::GlobalPositionTarget>("/mavros/setpoint_raw/global", 1);
 
     // set a default thrust for att_target in case of dropping due to delay
     att_target_.thrust = throttle_default_;
@@ -77,6 +80,29 @@ void PX4CtrlFSM::init(ros::NodeHandle &nh) {
     //zhiyuan:get Imgmatching
     nh_ = nh;
     initGoalMarker();
+
+    // Read optional initial global setpoint params
+    getParamWithWarning(nh, "px4fsm/publish_global_setpoint", publish_global_setpoint_);
+    getParamWithWarning(nh, "px4fsm/global_setpoint_lat", global_setpoint_lat_);
+    getParamWithWarning(nh, "px4fsm/global_setpoint_lon", global_setpoint_lon_);
+    getParamWithWarning(nh, "px4fsm/global_setpoint_alt", global_setpoint_alt_);
+
+    if (publish_global_setpoint_) {
+        mavros_msgs::GlobalPositionTarget gpt;
+        gpt.header.stamp = ros::Time::now();
+        gpt.latitude = global_setpoint_lat_;
+        gpt.longitude = global_setpoint_lon_;
+        gpt.altitude = global_setpoint_alt_;
+        // set type_mask to indicate only position is used (no velocity/acceleration)
+        gpt.type_mask = mavros_msgs::GlobalPositionTarget::IGNORE_VX | mavros_msgs::GlobalPositionTarget::IGNORE_VY |
+                        mavros_msgs::GlobalPositionTarget::IGNORE_VZ | mavros_msgs::GlobalPositionTarget::IGNORE_AFX |
+                        mavros_msgs::GlobalPositionTarget::IGNORE_AFY | mavros_msgs::GlobalPositionTarget::IGNORE_AFZ |
+                        mavros_msgs::GlobalPositionTarget::IGNORE_YAW | mavros_msgs::GlobalPositionTarget::IGNORE_YAW_RATE;
+
+        global_setpoint_pub_.publish(gpt);
+        ROS_INFO_STREAM("[PX4 FSM]: Published initial global setpoint: lat=" << global_setpoint_lat_
+                        << " lon=" << global_setpoint_lon_ << " alt=" << global_setpoint_alt_);
+    }
 }
 
 void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
@@ -237,11 +263,53 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
                 publishTrajSetpoint();
             } else {
                 if (mission_distance < target_thresh_) {
-                    traj_cmd_received_ = false;
-                    std::cout << "\033[1;32m[PX4 FSM]: Reached mission target, switching to HOLD then SOFT_LAND.\033[0m" << std::endl;
-                    hold_pos_ = pos_;
-                    hold_yaw_ = att_.z();
-                    changeFSMState(SOFT_LAND);
+                    // Check GPS accuracy for precise positioning
+                    if (global_position_received_ && global_setpoint_received_) {
+                        double gps_distance = calculateGPSDistance(current_global_position_, target_global_position_);
+                        std::cout << "[PX4 FSM]: Local distance: " << std::fixed << std::setprecision(2) 
+                                  << mission_distance << " m, GPS distance: " << gps_distance << " m" << std::endl;
+                        
+                        if (gps_distance < 0.1) { // 10cm threshold
+                            traj_cmd_received_ = false;
+                            std::cout << "\033[1;32m[PX4 FSM]: GPS position accurate (<10cm), switching to SOFT_LAND.\033[0m" << std::endl;
+                            changeFSMState(SOFT_LAND);
+                        } else {
+                            // Calculate GPS correction vector and move towards target
+                            Eigen::Vector2d gps_correction = calculateGPSVector(current_global_position_, target_global_position_);
+                            
+                            // Limit correction magnitude for safety
+                            double max_correction = 0.01; // 10cm max movement per cycle
+                            if (gps_correction.norm() > max_correction) {
+                                gps_correction = gps_correction.normalized() * max_correction;
+                            }
+                            
+                            hold_pos_.x() += gps_correction.x();
+                            hold_pos_.y() += gps_correction.y();
+                            hold_pos_.z() = pos_.z(); // Keep current height
+                            
+                            std::cout << "[PX4 FSM]: GPS correction applied: [" 
+                                      << std::fixed << std::setprecision(3) 
+                                      << gps_correction.x() << ", " << gps_correction.y() 
+                                      << "] m, new target: [" << hold_pos_.x() << ", " 
+                                      << hold_pos_.y() << ", " << hold_pos_.z() << "]" << std::endl;
+                            
+                            // Apply geo fence constraints
+                            geoFenceClamp(hold_pos_);
+                            
+                            // Publish the corrected position
+                            publishPoseSetpoint(hold_pos_, hold_yaw_);
+                            
+                            // Stay in TRAJ_CMD to continue GPS-based positioning
+                            traj_cmd_received_ = false;
+                        }
+                    } else {
+                        // No GPS data available, fall back to local positioning
+                        std::cout << "\033[1;33m[PX4 FSM]: No GPS data available, using local positioning for landing.\033[0m" << std::endl;
+                        traj_cmd_received_ = false;
+                        hold_pos_ = pos_;
+                        hold_yaw_ = att_.z();
+                        changeFSMState(SOFT_LAND);
+                    }
                 } else {
                     // not reach the target yet, but planner sent no traj，set traj_cmd_received_ false，wait planner 
                     traj_cmd_received_ = false;
@@ -405,6 +473,8 @@ void PX4CtrlFSM::poseCallback(const geometry_msgs::PoseStamped::ConstPtr &msg) {
             takeoff_pos_.head(2) = init_pos_.head(2);
             takeoff_pos_.z() = cruise_height_ + init_pos_.z();
             
+            // Set auto mission target in world frame
+            auto_mission_target_ = auto_mission_target_ + init_pos_;
             init_pos_buffer_.clear();
         }
     }
@@ -470,6 +540,16 @@ void PX4CtrlFSM::landCmdCallback(const std_msgs::Bool::ConstPtr &msg) {
 
 void PX4CtrlFSM::extendedStateCallback(const mavros_msgs::ExtendedState::ConstPtr &msg) {
     extended_state_ = *msg;
+}
+
+void PX4CtrlFSM::globalPositionCallback(const sensor_msgs::NavSatFix::ConstPtr &msg) {
+    current_global_position_ = *msg;
+    global_position_received_ = true;
+}
+
+void PX4CtrlFSM::globalSetpointCallback(const mavros_msgs::GlobalPositionTarget::ConstPtr &msg) {
+    target_global_position_ = *msg;
+    global_setpoint_received_ = true;
 }
 
 void PX4CtrlFSM::changeFSMState(PX4CtrlFSM::FSM_EXEC_STATE new_state) {
@@ -1134,4 +1214,48 @@ Eigen::Vector3d PX4CtrlFSM::adjustPositionWithPIControl(const cv::Point2f& offse
     geoFenceClamp(corrected_pos);
     
     return corrected_pos;
+}
+
+double PX4CtrlFSM::calculateGPSDistance(const sensor_msgs::NavSatFix& pos1, const mavros_msgs::GlobalPositionTarget& pos2) {
+    const double R = 6371000.0; // Earth radius in meters
+    
+    double lat1_rad = pos1.latitude * M_PI / 180.0;
+    double lat2_rad = pos2.latitude * M_PI / 180.0;
+    double dlat_rad = (pos2.latitude - pos1.latitude) * M_PI / 180.0;
+    double dlon_rad = (pos2.longitude - pos1.longitude) * M_PI / 180.0;
+    
+    double a = sin(dlat_rad/2) * sin(dlat_rad/2) +
+               cos(lat1_rad) * cos(lat2_rad) *
+               sin(dlon_rad/2) * sin(dlon_rad/2);
+    double c = 2 * atan2(sqrt(a), sqrt(1-a));
+    
+    return R * c; // Distance in meters
+}
+
+Eigen::Vector2d PX4CtrlFSM::calculateGPSVector(const sensor_msgs::NavSatFix& current, const mavros_msgs::GlobalPositionTarget& target) {
+    const double R = 6371000.0; // Earth radius in meters
+    
+    double lat1_rad = current.latitude * M_PI / 180.0;
+    double lon1_rad = current.longitude * M_PI / 180.0;
+    double lat2_rad = target.latitude * M_PI / 180.0;
+    double lon2_rad = target.longitude * M_PI / 180.0;
+    
+    // Calculate local cartesian coordinates (East-North-Up frame)
+    double dlat = lat2_rad - lat1_rad;
+    double dlon = lon2_rad - lon1_rad;
+    
+    // Convert to meters (approximation for small distances)
+    double dx = dlon * R * cos(lat1_rad); // East direction (positive = east)
+    double dy = dlat * R;                 // North direction (positive = north)
+    
+    return Eigen::Vector2d(dx, dy);
+}
+
+bool PX4CtrlFSM::isGPSPositionAccurate(double threshold_meters) {
+    if (!global_position_received_ || !global_setpoint_received_) {
+        return false;
+    }
+    
+    double distance = calculateGPSDistance(current_global_position_, target_global_position_);
+    return distance < threshold_meters;
 }

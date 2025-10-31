@@ -2,8 +2,8 @@
     <node pkg="px4_utils_land" type="px4_ctrl_fsm_node_land" name="px4_ctrl_fsm" output="screen">
         <param name="px4fsm/exec_period" value="0.01" type="double"/>
         <param name="px4fsm/cruise_height" value="2.0" type="double"/>
-        <param name="px4fsm/fence_x" value="20.0" type="double"/>
-        <param name="px4fsm/fence_y" value="20.0" type="double"/>
+        <param name="px4fsm/fence_x" value="2000.0" type="double"/>
+        <param name="px4fsm/fence_y" value="2000.0" type="double"/>
         <param name="px4fsm/fence_z" value="10.0" type="double"/>
         <param name="px4fsm/kp" value="0.002" type="double"/>
         <param name="px4fsm/ki" value="0.0001" type="double"/>
@@ -39,9 +39,16 @@
 
         <!-- auto mission params -->
         <param name="px4fsm/enable_auto_mission" value="true" type="bool"/>
-        <param name="px4fsm/auto_mission_target_x" value="5.0" type="double"/>
-        <param name="px4fsm/auto_mission_target_y" value="5.0" type="double"/>
+        <param name="px4fsm/auto_mission_target_x" value="60.0" type="double"/>
+        <param name="px4fsm/auto_mission_target_y" value="80.0" type="double"/>
         <param name="px4fsm/auto_mission_target_z" value="5.0" type="double"/>
+
+        <!-- Optional initial global setpoint (lat, lon, alt) to publish to /mavros/setpoint_raw/global -->
+        <!-- Set px4fsm/publish_global_setpoint to true to publish this global setpoint at node start -->
+        <param name="px4fsm/publish_global_setpoint" value="true" type="bool"/>
+        <param name="px4fsm/global_setpoint_lat" value="37.4142541" type="double"/>
+        <param name="px4fsm/global_setpoint_lon" value="-121.9958815" type="double"/>
+        <param name="px4fsm/global_setpoint_alt" value="0.0" type="double"/>
 
         <!-- Morphology Operation Parameters -->
         <param name="morphology/kernel_size" value="5" type="int"/>
@@ -53,7 +60,7 @@
     <node pkg="px4_utils_land" type="px4_fsm_interface_node_land" name="px4_fsm_interface" output="screen">
         <param name="land_topic" value="/trigger_landing" />
     </node>
-    
-    <!--node name="rviz" pkg="rviz" type="rviz" args="-d $(find px4_utils_land)/launch/test.rviz" required="true" /-->
-      
+
+    <!--<node name="rviz" pkg="rviz" type="rviz" args="-d $(find px4_utils_land)/launch/test.rviz" required="true" /-->
+
 </launch>
