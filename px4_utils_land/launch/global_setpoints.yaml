@@ -1,0 +1,22 @@
+# GPS Coordinates captured by get_global_setpoint node
+# Generated at: 200.152000000
+
+# Initial GPS coordinate (power-on position)
+initial:
+  latitude: 37.41353390
+  longitude: -121.99656100
+  altitude: -30.606
+
+# Target GPS coordinate (manually captured)
+target:
+  latitude: 37.41425450
+  longitude: -121.99587880
+  altitude: -27.496
+
+# Relative position vector in ENU frame (meters)
+# Target position relative to Initial position
+enu_relative:
+  east: 60.318
+  north: 80.217
+  up: 3.110
+  distance: 100.413

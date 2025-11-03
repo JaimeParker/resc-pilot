@@ -27,9 +27,50 @@ void PX4CtrlFSM::init(ros::NodeHandle &nh) {
     getParamWithWarning(nh, "px4fsm/land_cmd_topic", land_cmd_topic_);
 
     getParamWithWarning(nh, "px4fsm/enable_auto_mission", enable_auto_mission_);
-    getParamWithWarning(nh, "px4fsm/auto_mission_target_x", auto_mission_target_x_);
-    getParamWithWarning(nh, "px4fsm/auto_mission_target_y", auto_mission_target_y_);
-    getParamWithWarning(nh, "px4fsm/auto_mission_target_z", auto_mission_target_z_);
+    
+    double yaml_lat, yaml_lon, yaml_alt;
+    double yaml_target_x, yaml_target_y, yaml_target_z;
+    
+    bool has_yaml_gps = nh.getParam("/global_gps/target/latitude", yaml_lat) &&
+                        nh.getParam("/global_gps/target/longitude", yaml_lon) &&
+                        nh.getParam("/global_gps/target/altitude", yaml_alt);
+    
+    bool has_yaml_enu = nh.getParam("/global_gps/enu_relative/east", yaml_target_x) &&
+                        nh.getParam("/global_gps/enu_relative/north", yaml_target_y) &&
+                        nh.getParam("/global_gps/enu_relative/up", yaml_target_z);
+    
+    if (has_yaml_gps) {
+        global_setpoint_lat_ = yaml_lat;
+        global_setpoint_lon_ = yaml_lon;
+        global_setpoint_alt_ = yaml_alt;
+        publish_global_setpoint_ = true;
+        ROS_INFO("[PX4 FSM]: Using GPS coordinates from YAML: lat=%.8f, lon=%.8f, alt=%.3f", 
+                 yaml_lat, yaml_lon, yaml_alt);
+    } else {
+        // Fall back to px4fsm namespace parameters
+        getParamWithWarning(nh, "px4fsm/global_setpoint_lat", global_setpoint_lat_);
+        getParamWithWarning(nh, "px4fsm/global_setpoint_lon", global_setpoint_lon_);
+        getParamWithWarning(nh, "px4fsm/global_setpoint_alt", global_setpoint_alt_);
+        ROS_INFO("[PX4 FSM]: Using GPS coordinates from px4fsm params: lat=%.8f, lon=%.8f, alt=%.3f", 
+                 global_setpoint_lat_, global_setpoint_lon_, global_setpoint_alt_);
+    }
+    
+    if (has_yaml_enu) {
+        auto_mission_target_x_ = yaml_target_x;
+        auto_mission_target_y_ = yaml_target_y;
+        auto_mission_target_z_ = yaml_target_z;
+        ROS_INFO("[PX4 FSM]: Using ENU coordinates from YAML: x=%.3f, y=%.3f, z=%.3f", 
+                 yaml_target_x, yaml_target_y, yaml_target_z);
+    } else {
+        // Fall back to px4fsm namespace parameters
+        getParamWithWarning(nh, "px4fsm/auto_mission_target_x", auto_mission_target_x_);
+        getParamWithWarning(nh, "px4fsm/auto_mission_target_y", auto_mission_target_y_);
+        getParamWithWarning(nh, "px4fsm/auto_mission_target_z", auto_mission_target_z_);
+        ROS_INFO("[PX4 FSM]: Using ENU coordinates from px4fsm params: x=%.3f, y=%.3f, z=%.3f", 
+                 auto_mission_target_x_, auto_mission_target_y_, auto_mission_target_z_);
+    }
+    
+    getParamWithWarning(nh, "px4fsm/publish_global_setpoint", publish_global_setpoint_);
     
     // Set auto mission target
     auto_mission_target_ << auto_mission_target_x_, auto_mission_target_y_, auto_mission_target_z_;
@@ -81,11 +122,6 @@ void PX4CtrlFSM::init(ros::NodeHandle &nh) {
     nh_ = nh;
     initGoalMarker();
 
-    // Read optional initial global setpoint params
-    getParamWithWarning(nh, "px4fsm/publish_global_setpoint", publish_global_setpoint_);
-    getParamWithWarning(nh, "px4fsm/global_setpoint_lat", global_setpoint_lat_);
-    getParamWithWarning(nh, "px4fsm/global_setpoint_lon", global_setpoint_lon_);
-    getParamWithWarning(nh, "px4fsm/global_setpoint_alt", global_setpoint_alt_);
 
     if (publish_global_setpoint_) {
         mavros_msgs::GlobalPositionTarget gpt;
@@ -283,22 +319,29 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
                                 gps_correction = gps_correction.normalized() * max_correction;
                             }
                             
-                            hold_pos_.x() += gps_correction.x();
-                            hold_pos_.y() += gps_correction.y();
-                            hold_pos_.z() = pos_.z(); // Keep current height
-                            
-                            std::cout << "[PX4 FSM]: GPS correction applied: [" 
-                                      << std::fixed << std::setprecision(3) 
-                                      << gps_correction.x() << ", " << gps_correction.y() 
-                                      << "] m, new target: [" << hold_pos_.x() << ", " 
-                                      << hold_pos_.y() << ", " << hold_pos_.z() << "]" << std::endl;
-                            
-                            // Apply geo fence constraints
-                            geoFenceClamp(hold_pos_);
-                            
-                            // Publish the corrected position
-                            publishPoseSetpoint(hold_pos_, hold_yaw_);
-                            
+                            // Use GPS global coordinates:
+                            if (gps_correction.norm() > 0.001) {
+                                mavros_msgs::GlobalPositionTarget gps_target;
+                                gps_target.header.stamp = ros::Time::now();
+                                gps_target.latitude = target_global_position_.latitude;
+                                gps_target.longitude = target_global_position_.longitude;
+                                gps_target.altitude = current_global_position_.altitude; // hold current altitude
+                                gps_target.type_mask = mavros_msgs::GlobalPositionTarget::IGNORE_VX | 
+                                                    mavros_msgs::GlobalPositionTarget::IGNORE_VY |
+                                                    mavros_msgs::GlobalPositionTarget::IGNORE_VZ |
+                                                    mavros_msgs::GlobalPositionTarget::IGNORE_AFX |
+                                                    mavros_msgs::GlobalPositionTarget::IGNORE_AFY |
+                                                    mavros_msgs::GlobalPositionTarget::IGNORE_AFZ |
+                                                    mavros_msgs::GlobalPositionTarget::IGNORE_YAW |
+                                                    mavros_msgs::GlobalPositionTarget::IGNORE_YAW_RATE;
+                                
+                                global_setpoint_pub_.publish(gps_target);
+                                std::cout << "[PX4 FSM]: Published GPS setpoint for precision positioning" << std::endl;
+                            } else {
+                                // Continue using local
+                                publishPoseSetpoint(hold_pos_, hold_yaw_);
+                            }
+
                             // Stay in TRAJ_CMD to continue GPS-based positioning
                             traj_cmd_received_ = false;
                         }

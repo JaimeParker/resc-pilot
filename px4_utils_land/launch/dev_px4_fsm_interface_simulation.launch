@@ -1,4 +1,7 @@
 <launch>
+    <!-- Load global GPS setpoints from YAML file if it exists -->
+    <rosparam file="$(find px4_utils_land)/launch/global_setpoints.yaml" command="load" ns="global_gps" />
+    
     <node pkg="px4_utils_land" type="px4_ctrl_fsm_node_land" name="px4_ctrl_fsm" output="screen">
         <param name="px4fsm/exec_period" value="0.01" type="double"/>
         <param name="px4fsm/cruise_height" value="2.0" type="double"/>
@@ -38,17 +41,21 @@
         <param name="hsv/v_max" value="255" type="int"/> -->
 
         <!-- auto mission params -->
-        <param name="px4fsm/enable_auto_mission" value="true" type="bool"/>
+        <!--<param name="px4fsm/enable_auto_mission" value="true" type="bool"/>
         <param name="px4fsm/auto_mission_target_x" value="60.0" type="double"/>
         <param name="px4fsm/auto_mission_target_y" value="80.0" type="double"/>
-        <param name="px4fsm/auto_mission_target_z" value="5.0" type="double"/>
+        <param name="px4fsm/auto_mission_target_z" value="5.0" type="double"/-->
 
-        <!-- Optional initial global setpoint (lat, lon, alt) to publish to /mavros/setpoint_raw/global -->
-        <!-- Set px4fsm/publish_global_setpoint to true to publish this global setpoint at node start -->
-        <param name="px4fsm/publish_global_setpoint" value="true" type="bool"/>
+        <!-- Option 1: Manual configuration (default) -->
+        <!--param name="px4fsm/publish_global_setpoint" value="false" type="bool"/>
         <param name="px4fsm/global_setpoint_lat" value="37.4142541" type="double"/>
         <param name="px4fsm/global_setpoint_lon" value="-121.9958815" type="double"/>
-        <param name="px4fsm/global_setpoint_alt" value="0.0" type="double"/>
+        <param name="px4fsm/global_setpoint_alt" value="0.0" type="double"/>-->
+
+        <!-- Option 2: Use target GPS from YAML file -->
+        <param name="px4fsm/enable_auto_mission" value="true" type="bool"/>
+
+        <param name="px4fsm/publish_global_setpoint" value="true" type="bool"/>
 
         <!-- Morphology Operation Parameters -->
         <param name="morphology/kernel_size" value="5" type="int"/>
