@@ -80,6 +80,9 @@ target_link_libraries(land_command_publisher_node_land ${catkin_LIBRARIES})
 add_executable(px4_fsm_interface_node_land src/px4_fsm_interface.cc)
 target_link_libraries(px4_fsm_interface_node_land ${catkin_LIBRARIES})
 
+add_executable(get_global_setpoint_node src/get_global_setpoint_node.cc)
+target_link_libraries(get_global_setpoint_node ${catkin_LIBRARIES})
+
 ##zhiyuan: add test executables
 # add_executable(vision_node src/utils/vision_orb.cc)
 # target_link_libraries(vision_node ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})

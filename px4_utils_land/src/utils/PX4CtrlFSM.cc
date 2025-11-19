@@ -28,6 +28,34 @@ void PX4CtrlFSM::init(ros::NodeHandle &nh) {
 
     getParamWithWarning(nh, "px4fsm/enable_auto_mission", enable_auto_mission_);
     
+    // If auto mission is enabled, wait for preprocessing node to complete
+    if (enable_auto_mission_) {
+        ros::NodeHandle gnh; // global namespace
+        ros::Rate wait_rate(2);
+        int waited = 0;
+        const int max_wait_sec = 60; // wait up to 60 seconds
+        bool ready = false;
+        
+        while (ros::ok() && waited < max_wait_sec) {
+            if (gnh.hasParam("/global_gps/ready")) {
+                gnh.getParam("/global_gps/ready", ready);
+                if (ready) {
+                    break;
+                }
+            }
+            wait_rate.sleep();
+            waited += 0.5;
+            
+            if (waited % 10 == 0) { // Print every 10 seconds
+                ROS_INFO("[PX4 FSM]: Still waiting... (%d/%d seconds)", (int)waited, max_wait_sec);
+            }
+        }
+        
+        if (!ready) {
+            ROS_WARN("[PX4 FSM]: GPS preprocessing timeout after %d seconds. Using fallback values.", max_wait_sec);
+        }
+    }
+    
     double yaml_lat, yaml_lon, yaml_alt;
     double yaml_target_x, yaml_target_y, yaml_target_z;
     
@@ -44,29 +72,25 @@ void PX4CtrlFSM::init(ros::NodeHandle &nh) {
         global_setpoint_lon_ = yaml_lon;
         global_setpoint_alt_ = yaml_alt;
         publish_global_setpoint_ = true;
-        ROS_INFO("[PX4 FSM]: Using GPS coordinates from YAML: lat=%.8f, lon=%.8f, alt=%.3f", 
-                 yaml_lat, yaml_lon, yaml_alt);
     } else {
         // Fall back to px4fsm namespace parameters
         getParamWithWarning(nh, "px4fsm/global_setpoint_lat", global_setpoint_lat_);
         getParamWithWarning(nh, "px4fsm/global_setpoint_lon", global_setpoint_lon_);
         getParamWithWarning(nh, "px4fsm/global_setpoint_alt", global_setpoint_alt_);
-        ROS_INFO("[PX4 FSM]: Using GPS coordinates from px4fsm params: lat=%.8f, lon=%.8f, alt=%.3f", 
-                 global_setpoint_lat_, global_setpoint_lon_, global_setpoint_alt_);
     }
     
     if (has_yaml_enu) {
         auto_mission_target_x_ = yaml_target_x;
         auto_mission_target_y_ = yaml_target_y;
         auto_mission_target_z_ = yaml_target_z;
-        ROS_INFO("[PX4 FSM]: Using ENU coordinates from YAML: x=%.3f, y=%.3f, z=%.3f", 
+        ROS_INFO("[PX4 FSM]: Using ENU target: x=%.3f, y=%.3f, z=%.3f", 
                  yaml_target_x, yaml_target_y, yaml_target_z);
     } else {
         // Fall back to px4fsm namespace parameters
         getParamWithWarning(nh, "px4fsm/auto_mission_target_x", auto_mission_target_x_);
         getParamWithWarning(nh, "px4fsm/auto_mission_target_y", auto_mission_target_y_);
         getParamWithWarning(nh, "px4fsm/auto_mission_target_z", auto_mission_target_z_);
-        ROS_INFO("[PX4 FSM]: Using ENU coordinates from px4fsm params: x=%.3f, y=%.3f, z=%.3f", 
+        ROS_INFO("[PX4 FSM]: Using ENU fallback: x=%.3f, y=%.3f, z=%.3f", 
                  auto_mission_target_x_, auto_mission_target_y_, auto_mission_target_z_);
     }
     
@@ -136,8 +160,8 @@ void PX4CtrlFSM::init(ros::NodeHandle &nh) {
                         mavros_msgs::GlobalPositionTarget::IGNORE_YAW | mavros_msgs::GlobalPositionTarget::IGNORE_YAW_RATE;
 
         global_setpoint_pub_.publish(gpt);
-        ROS_INFO_STREAM("[PX4 FSM]: Published initial global setpoint: lat=" << global_setpoint_lat_
-                        << " lon=" << global_setpoint_lon_ << " alt=" << global_setpoint_alt_);
+        // ROS_INFO_STREAM("[PX4 FSM]: Published initial global setpoint: lat=" << global_setpoint_lat_
+        //                 << " lon=" << global_setpoint_lon_ << " alt=" << global_setpoint_alt_);
     }
 }
 
@@ -293,7 +317,8 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
             
             Eigen::Vector3d target_pos(quad_pos_cmd_.position.x, quad_pos_cmd_.position.y, quad_pos_cmd_.position.z);
             double distance_to_target = (target_pos - pos_).norm();
-            printf("[PX4 FSM]: Distance to mission target: %.2f m, traj distance: %.2f m\n", mission_distance, distance_to_target);
+            if (fsm_num % 200 == 0)
+                printf("[PX4 FSM]: Distance to mission target: %.2f m, traj distance: %.2f m\n", mission_distance, distance_to_target);
             // if ((mission_distance > target_thresh_ / 2) && traj_cmd_received_ && ros::Time::now() - last_traj_cmd_time_ < ros::Duration(traj_cmd_timeout_)) {
             if ((mission_distance > target_thresh_) && traj_cmd_received_ && ros::Time::now() - last_traj_cmd_time_ < ros::Duration(traj_cmd_timeout_)) {
                 publishTrajSetpoint();
@@ -302,44 +327,39 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
                     // Check GPS accuracy for precise positioning
                     if (global_position_received_ && global_setpoint_received_) {
                         double gps_distance = calculateGPSDistance(current_global_position_, target_global_position_);
-                        std::cout << "[PX4 FSM]: Local distance: " << std::fixed << std::setprecision(2) 
-                                  << mission_distance << " m, GPS distance: " << gps_distance << " m" << std::endl;
+                        if (fsm_num % 200 == 0)
+                            std::cout << "[PX4 FSM]: Local distance: " << std::fixed << std::setprecision(2) 
+                                      << mission_distance << " m, GPS distance: " << gps_distance << " m" << std::endl;
                         
                         if (gps_distance < 0.1) { // 10cm threshold
                             traj_cmd_received_ = false;
                             std::cout << "\033[1;32m[PX4 FSM]: GPS position accurate (<10cm), switching to SOFT_LAND.\033[0m" << std::endl;
                             changeFSMState(SOFT_LAND);
                         } else {
-                            // Calculate GPS correction vector and move towards target
+                            // Calculate GPS correction vector in local coordinates
                             Eigen::Vector2d gps_correction = calculateGPSVector(current_global_position_, target_global_position_);
                             
                             // Limit correction magnitude for safety
-                            double max_correction = 0.01; // 10cm max movement per cycle
+                            double max_correction = 0.1; // 10cm max movement per cycle
                             if (gps_correction.norm() > max_correction) {
                                 gps_correction = gps_correction.normalized() * max_correction;
                             }
                             
-                            // Use GPS global coordinates:
-                            if (gps_correction.norm() > 0.001) {
-                                mavros_msgs::GlobalPositionTarget gps_target;
-                                gps_target.header.stamp = ros::Time::now();
-                                gps_target.latitude = target_global_position_.latitude;
-                                gps_target.longitude = target_global_position_.longitude;
-                                gps_target.altitude = current_global_position_.altitude; // hold current altitude
-                                gps_target.type_mask = mavros_msgs::GlobalPositionTarget::IGNORE_VX | 
-                                                    mavros_msgs::GlobalPositionTarget::IGNORE_VY |
-                                                    mavros_msgs::GlobalPositionTarget::IGNORE_VZ |
-                                                    mavros_msgs::GlobalPositionTarget::IGNORE_AFX |
-                                                    mavros_msgs::GlobalPositionTarget::IGNORE_AFY |
-                                                    mavros_msgs::GlobalPositionTarget::IGNORE_AFZ |
-                                                    mavros_msgs::GlobalPositionTarget::IGNORE_YAW |
-                                                    mavros_msgs::GlobalPositionTarget::IGNORE_YAW_RATE;
-                                
-                                global_setpoint_pub_.publish(gps_target);
-                                std::cout << "[PX4 FSM]: Published GPS setpoint for precision positioning" << std::endl;
+                            // Apply GPS correction to current position using local coordinates
+                            if (gps_correction.norm() > 0.01) { // 1cm threshold
+                                Eigen::Vector3d corrected_pos = pos_;
+                                corrected_pos.x() += gps_correction.x(); // East correction
+                                corrected_pos.y() += gps_correction.y(); // North correction
+                                // Keep current altitude
+                                publishPoseSetpoint(corrected_pos, hold_yaw_);
+                                sleep(0.4); // allow some time for GPS (3Hz) to update
+                                if (fsm_num % 100 == 0)
+                                    std::cout << "[PX4 FSM]: Published GPS setpoint for precision positioning" << std::endl;
                             } else {
-                                // Continue using local
-                                publishPoseSetpoint(hold_pos_, hold_yaw_);
+                                // GPS correction too small, use current position
+                                publishPoseSetpoint(pos_, hold_yaw_);
+                                if (fsm_num % 100 == 0)
+                                    std::cout << "[PX4 FSM]: GPS correction negligible, holding position." << std::endl;
                             }
 
                             // Stay in TRAJ_CMD to continue GPS-based positioning
@@ -692,7 +712,8 @@ void PX4CtrlFSM::fsmSoftLand() {
 void PX4CtrlFSM::fsmVisionLand() {
     static bool land_initialized = false;
     static ros::Time land_start_time;
-
+    static int land_num = 0;
+    land_num++;
     if (!land_initialized) {
         hold_pos_ = pos_;  
         land_start_time = ros::Time::now();
@@ -709,9 +730,10 @@ void PX4CtrlFSM::fsmVisionLand() {
         hold_pos_.z() -= 0.001;
         
         cv::Point2f offset = image_matcher_->getOffset();
-        std::cout << "[PX4 FSM]: Beacon detected, offset: (" 
-                  << std::fixed << std::setprecision(3) << offset.x << ", " << offset.y 
-                  << ") m, height: " << hold_pos_.z() << " m" << std::endl;
+        if (land_num % 99 == 0)
+            std::cout << "[PX4 FSM]: Beacon detected, offset: (" 
+                    << std::fixed << std::setprecision(3) << offset.x << ", " << offset.y 
+                    << ") m, height: " << hold_pos_.z() << " m" << std::endl;
     } else {
         hold_pos_.z() -= 0.001;
         

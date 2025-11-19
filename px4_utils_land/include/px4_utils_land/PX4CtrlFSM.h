@@ -100,7 +100,7 @@ private:
     bool auto_mission_started_ = false;
 
     /* params */
-    double target_thresh_ = 0.25;
+    double target_thresh_ = 0.50;
     double exec_period_ = 0.01;
     double cruise_height_ = 1.0;
     double fence_x_ = 10.0;

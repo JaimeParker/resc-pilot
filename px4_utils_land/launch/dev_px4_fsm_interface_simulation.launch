@@ -1,6 +1,9 @@
 <launch>
-    <!-- Load global GPS setpoints from YAML file if it exists -->
-    <rosparam file="$(find px4_utils_land)/launch/global_setpoints.yaml" command="load" ns="global_gps" />
+    <node pkg="px4_utils_land" type="get_global_setpoint_node" name="get_global_setpoint" output="screen">
+        <param name="target_latitude" value="37.4142541" type="double"/>   
+        <param name="target_longitude" value="-121.9958815" type="double"/> 
+        <param name="target_altitude" value="-25.532" type="double"/>      
+    </node>
     
     <node pkg="px4_utils_land" type="px4_ctrl_fsm_node_land" name="px4_ctrl_fsm" output="screen">
         <param name="px4fsm/exec_period" value="0.01" type="double"/>
