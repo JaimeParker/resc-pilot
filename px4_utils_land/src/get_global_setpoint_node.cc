@@ -112,8 +112,8 @@ public:
         enu.y = dlat * EARTH_RADIUS;
         
         // Up: delta_altitude
-        enu.z = 5.0; // Adding 2.0 to account for altitude offset
-        
+        enu.z = 2.5; // Adding 2.5 to account for altitude offset
+
         return enu;
     }
     
