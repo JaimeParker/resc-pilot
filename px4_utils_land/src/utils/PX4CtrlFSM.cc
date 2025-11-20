@@ -323,64 +323,7 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
             if ((mission_distance > target_thresh_) && traj_cmd_received_ && ros::Time::now() - last_traj_cmd_time_ < ros::Duration(traj_cmd_timeout_)) {
                 publishTrajSetpoint();
             } else {
-                if (mission_distance < target_thresh_) {
-                    // Check GPS accuracy for precise positioning
-                    if (global_position_received_ && global_setpoint_received_) {
-                        double gps_distance = calculateGPSDistance(current_global_position_, target_global_position_);
-                        if (fsm_num % 200 == 0)
-                            std::cout << "[PX4 FSM]: Local distance: " << std::fixed << std::setprecision(2) 
-                                      << mission_distance << " m, GPS distance: " << gps_distance << " m" << std::endl;
-                        
-                        if (gps_distance < 0.1) { // 10cm threshold
-                            traj_cmd_received_ = false;
-                            std::cout << "\033[1;32m[PX4 FSM]: GPS position accurate (<10cm), switching to SOFT_LAND.\033[0m" << std::endl;
-                            changeFSMState(SOFT_LAND);
-                        } else {
-                            // Calculate GPS correction vector in local coordinates
-                            Eigen::Vector2d gps_correction = calculateGPSVector(current_global_position_, target_global_position_);
-                            
-                            // Limit correction magnitude for safety
-                            double max_correction = 0.1; // 10cm max movement per cycle
-                            if (gps_correction.norm() > max_correction) {
-                                gps_correction = gps_correction.normalized() * max_correction;
-                            }
-                            
-                            // Apply GPS correction to current position using local coordinates
-                            if (gps_correction.norm() > 0.01) { // 1cm threshold
-                                Eigen::Vector3d corrected_pos = pos_;
-                                corrected_pos.x() += gps_correction.x(); // East correction
-                                corrected_pos.y() += gps_correction.y(); // North correction
-                                // Keep current altitude
-                                publishPoseSetpoint(corrected_pos, hold_yaw_);
-                                sleep(0.4); // allow some time for GPS (3Hz) to update
-                                if (fsm_num % 100 == 0)
-                                    std::cout << "[PX4 FSM]: Published GPS setpoint for precision positioning" << std::endl;
-                            } else {
-                                // GPS correction too small, use current position
-                                publishPoseSetpoint(pos_, hold_yaw_);
-                                if (fsm_num % 100 == 0)
-                                    std::cout << "[PX4 FSM]: GPS correction negligible, holding position." << std::endl;
-                            }
-
-                            // Stay in TRAJ_CMD to continue GPS-based positioning
-                            traj_cmd_received_ = false;
-                        }
-                    } else {
-                        // No GPS data available, fall back to local positioning
-                        std::cout << "\033[1;33m[PX4 FSM]: No GPS data available, using local positioning for landing.\033[0m" << std::endl;
-                        traj_cmd_received_ = false;
-                        hold_pos_ = pos_;
-                        hold_yaw_ = att_.z();
-                        changeFSMState(SOFT_LAND);
-                    }
-                } else {
-                    // not reach the target yet, but planner sent no traj，set traj_cmd_received_ false，wait planner 
-                    traj_cmd_received_ = false;
-                    ROS_INFO_STREAM("[PX4 FSM] traj_cmd_received_ set to false (not arrived, wait planner)");
-                    hold_pos_ = pos_;
-                    hold_yaw_ = att_.z();
-                    changeFSMState(HOLD);
-                }           
+                handlePrecisionPositioning(mission_distance, fsm_num);
             }
 
             break;
@@ -1323,4 +1266,81 @@ bool PX4CtrlFSM::isGPSPositionAccurate(double threshold_meters) {
     
     double distance = calculateGPSDistance(current_global_position_, target_global_position_);
     return distance < threshold_meters;
+}
+
+void PX4CtrlFSM::handlePrecisionPositioning(double mission_distance, int fsm_num) {
+    // Use hysteresis to prevent oscillation around threshold
+    static bool precision_mode_active = false;
+    double enter_threshold = target_thresh_;           // Enter precision mode at target_thresh_
+    double exit_threshold = target_thresh_ * 2;     // Exit precision mode at 2 * target_thresh_
+
+    // State transition logic with hysteresis
+    if (!precision_mode_active && mission_distance < enter_threshold) {
+        precision_mode_active = true;
+        if (fsm_num % 100 == 0)
+            std::cout << "[PX4 FSM]: Entering precision positioning mode (distance: " 
+                      << std::fixed << std::setprecision(2) << mission_distance << " m)" << std::endl;
+    } else if (precision_mode_active && mission_distance > exit_threshold) {
+        precision_mode_active = false;
+        if (fsm_num % 100 == 0)
+            std::cout << "[PX4 FSM]: Exiting precision positioning mode (distance: " 
+                      << std::fixed << std::setprecision(2) << mission_distance << " m)" << std::endl;
+    }
+    
+    if (precision_mode_active) {
+        // Check GPS accuracy for precise positioning
+        if (global_position_received_ && global_setpoint_received_) {
+            double gps_distance = calculateGPSDistance(current_global_position_, target_global_position_);
+            if (fsm_num % 200 == 0)
+                std::cout << "[PX4 FSM]: Local distance: " << std::fixed << std::setprecision(2) 
+                          << mission_distance << " m, GPS distance: " << gps_distance << " m" << std::endl;
+            
+            if (gps_distance < 0.1) { // 10cm threshold
+                traj_cmd_received_ = false;
+                precision_mode_active = false; // Reset for next approach
+                std::cout << "\033[1;32m[PX4 FSM]: GPS position accurate (<10cm), switching to SOFT_LAND.\033[0m" << std::endl;
+                changeFSMState(SOFT_LAND);
+            } else {
+                // Calculate GPS correction vector in local coordinates
+                Eigen::Vector2d gps_correction = calculateGPSVector(current_global_position_, target_global_position_);
+                
+                // Limit correction magnitude for safety
+                double max_correction = 0.1; // 10cm max movement per cycle
+                if (gps_correction.norm() > max_correction) {
+                    gps_correction = gps_correction.normalized() * max_correction;
+                }
+                
+                // Apply GPS correction to current position using local coordinates
+                if (gps_correction.norm() > 0.01) { // 1cm threshold
+                    Eigen::Vector3d corrected_pos = pos_;
+                    corrected_pos.x() += gps_correction.x(); // East correction
+                    corrected_pos.y() += gps_correction.y(); // North correction
+                    // Keep current altitude
+                    
+                    publishPoseSetpoint(corrected_pos, hold_yaw_);
+                    sleep(0.4); // Allow time for PX4 to process
+                    if (fsm_num % 100 == 0)
+                        std::cout << "[PX4 FSM]: Published GPS setpoint for precision positioning" << std::endl;
+                } else {
+                    // GPS correction too small, use current position
+                    publishPoseSetpoint(pos_, hold_yaw_);
+                    if (fsm_num % 100 == 0)
+                        std::cout << "[PX4 FSM]: GPS correction negligible, holding position." << std::endl;
+                }
+
+                // Stay in TRAJ_CMD to continue GPS-based positioning
+                traj_cmd_received_ = false;
+            }
+        } else {
+            // No GPS data available, fall back to local positioning
+            traj_cmd_received_ = false;
+            precision_mode_active = false; // Reset for next approach
+            changeFSMState(SOFT_LAND);
+        }
+    } else {
+        // Not in precision mode, wait for planner
+        traj_cmd_received_ = false;
+        if (fsm_num % 200 == 0) // Reduce log frequency
+            ROS_INFO_STREAM("[PX4 FSM] traj_cmd_received_ set to false (not arrived, wait planner)");
+    }
 }

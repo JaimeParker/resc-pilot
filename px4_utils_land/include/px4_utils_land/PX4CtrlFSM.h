@@ -230,6 +230,7 @@ public:
     double calculateGPSDistance(const sensor_msgs::NavSatFix& pos1, const mavros_msgs::GlobalPositionTarget& pos2);
     Eigen::Vector2d calculateGPSVector(const sensor_msgs::NavSatFix& current, const mavros_msgs::GlobalPositionTarget& target);
     bool isGPSPositionAccurate(double threshold_meters = 0.1);
+    void handlePrecisionPositioning(double mission_distance, int fsm_num);
     
 
     template<typename T>
