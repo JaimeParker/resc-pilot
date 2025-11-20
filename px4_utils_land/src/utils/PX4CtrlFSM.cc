@@ -1318,7 +1318,6 @@ void PX4CtrlFSM::handlePrecisionPositioning(double mission_distance, int fsm_num
                     // Keep current altitude
                     
                     publishPoseSetpoint(corrected_pos, hold_yaw_);
-                    sleep(0.4); // Allow time for PX4 to process
                     if (fsm_num % 100 == 0)
                         std::cout << "[PX4 FSM]: Published GPS setpoint for precision positioning" << std::endl;
                 } else {
