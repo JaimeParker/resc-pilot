@@ -1259,35 +1259,9 @@ Eigen::Vector2d PX4CtrlFSM::calculateGPSVector(const sensor_msgs::NavSatFix& cur
     return Eigen::Vector2d(dx, dy);
 }
 
-bool PX4CtrlFSM::isGPSPositionAccurate(double threshold_meters) {
-    if (!global_position_received_ || !global_setpoint_received_) {
-        return false;
-    }
-    
-    double distance = calculateGPSDistance(current_global_position_, target_global_position_);
-    return distance < threshold_meters;
-}
-
-void PX4CtrlFSM::handlePrecisionPositioning(double mission_distance, int fsm_num) {
-    // Use hysteresis to prevent oscillation around threshold
-    static bool precision_mode_active = false;
-    double enter_threshold = target_thresh_;           // Enter precision mode at target_thresh_
-    double exit_threshold = target_thresh_ * 2;     // Exit precision mode at 2 * target_thresh_
-
-    // State transition logic with hysteresis
-    if (!precision_mode_active && mission_distance < enter_threshold) {
-        precision_mode_active = true;
-        if (fsm_num % 100 == 0)
-            std::cout << "[PX4 FSM]: Entering precision positioning mode (distance: " 
-                      << std::fixed << std::setprecision(2) << mission_distance << " m)" << std::endl;
-    } else if (precision_mode_active && mission_distance > exit_threshold) {
-        precision_mode_active = false;
-        if (fsm_num % 100 == 0)
-            std::cout << "[PX4 FSM]: Exiting precision positioning mode (distance: " 
-                      << std::fixed << std::setprecision(2) << mission_distance << " m)" << std::endl;
-    }
-    
-    if (precision_mode_active) {
+void PX4CtrlFSM::handlePrecisionPositioning(double mission_distance, int fsm_num) {          // Enter precision mode at target_thresh_
+    if (mission_distance < target_thresh_) {
+        target_thresh_ = target_thresh_ * 2;
         // Check GPS accuracy for precise positioning
         if (global_position_received_ && global_setpoint_received_) {
             double gps_distance = calculateGPSDistance(current_global_position_, target_global_position_);
@@ -1297,7 +1271,6 @@ void PX4CtrlFSM::handlePrecisionPositioning(double mission_distance, int fsm_num
             
             if (gps_distance < 0.1) { // 10cm threshold
                 traj_cmd_received_ = false;
-                precision_mode_active = false; // Reset for next approach
                 std::cout << "\033[1;32m[PX4 FSM]: GPS position accurate (<10cm), switching to SOFT_LAND.\033[0m" << std::endl;
                 changeFSMState(SOFT_LAND);
             } else {
@@ -1309,23 +1282,17 @@ void PX4CtrlFSM::handlePrecisionPositioning(double mission_distance, int fsm_num
                 if (gps_correction.norm() > max_correction) {
                     gps_correction = gps_correction.normalized() * max_correction;
                 }
-                
-                // Apply GPS correction to current position using local coordinates
-                if (gps_correction.norm() > 0.01) { // 1cm threshold
-                    Eigen::Vector3d corrected_pos = pos_;
-                    corrected_pos.x() += gps_correction.x(); // East correction
-                    corrected_pos.y() += gps_correction.y(); // North correction
-                    // Keep current altitude
+
+                if (fsm_num % 100 == 0)
+                    std::cout << "[PX4 FSM]: Published GPS setpoint for precision positioning" << std::endl;
                     
-                    publishPoseSetpoint(corrected_pos, hold_yaw_);
-                    if (fsm_num % 100 == 0)
-                        std::cout << "[PX4 FSM]: Published GPS setpoint for precision positioning" << std::endl;
-                } else {
-                    // GPS correction too small, use current position
-                    publishPoseSetpoint(pos_, hold_yaw_);
-                    if (fsm_num % 100 == 0)
-                        std::cout << "[PX4 FSM]: GPS correction negligible, holding position." << std::endl;
-                }
+                // Apply GPS correction to current position using local coordinates
+                Eigen::Vector3d corrected_pos = pos_;
+                corrected_pos.x() += gps_correction.x(); // East correction
+                corrected_pos.y() += gps_correction.y(); // North correction
+                pos_.z() -= 0.005;
+
+                publishPoseSetpoint(corrected_pos, hold_yaw_);
 
                 // Stay in TRAJ_CMD to continue GPS-based positioning
                 traj_cmd_received_ = false;
@@ -1333,7 +1300,6 @@ void PX4CtrlFSM::handlePrecisionPositioning(double mission_distance, int fsm_num
         } else {
             // No GPS data available, fall back to local positioning
             traj_cmd_received_ = false;
-            precision_mode_active = false; // Reset for next approach
             changeFSMState(SOFT_LAND);
         }
     } else {
