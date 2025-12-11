@@ -112,7 +112,7 @@ public:
         enu.y = dlat * EARTH_RADIUS;
         
         // Up: delta_altitude
-        enu.z = 2.5; // Adding 2.5 to account for altitude offset
+        enu.z = 5.0; // Adding 5.0 to account for altitude offset
 
         return enu;
     }
@@ -223,7 +223,6 @@ public:
         gnh.setParam("/global_gps/enu_relative/distance", dist);
         gnh.setParam("/global_gps/ready", true);
     }
-    
 };
 
 int main(int argc, char** argv) {

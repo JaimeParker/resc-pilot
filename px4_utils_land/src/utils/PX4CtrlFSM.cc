@@ -4,6 +4,7 @@
 
 #include "px4_utils_land/PX4CtrlFSM.h"
 #include <cmath>
+#include <limits>
 
 
 
@@ -114,6 +115,7 @@ void PX4CtrlFSM::init(ros::NodeHandle &nh) {
     extended_state_sub_ = nh.subscribe("/mavros/extended_state", 10, &PX4CtrlFSM::extendedStateCallback, this);
     global_position_sub_ = nh.subscribe("/mavros/global_position/global", 10, &PX4CtrlFSM::globalPositionCallback, this);
     global_setpoint_sub_ = nh.subscribe("/mavros/setpoint_raw/global", 10, &PX4CtrlFSM::globalSetpointCallback, this);
+    lidar_sub_ = nh.subscribe("/scan", 10, &PX4CtrlFSM::lidarCallback, this);  // Subscribe to YDLidar
 
     // pose setpoint is high level, while traj target is mid level
     pose_setpoint_pub_ = nh.advertise<geometry_msgs::PoseStamped>(pose_setpoint_topic_, 1);
@@ -319,7 +321,7 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
             double distance_to_target = (target_pos - pos_).norm();
             if (fsm_num % 200 == 0)
                 printf("[PX4 FSM]: Distance to mission target: %.2f m, traj distance: %.2f m\n", mission_distance, distance_to_target);
-            // if ((mission_distance > target_thresh_ / 2) && traj_cmd_received_ && ros::Time::now() - last_traj_cmd_time_ < ros::Duration(traj_cmd_timeout_)) {
+            
             if ((mission_distance > target_thresh_) && traj_cmd_received_ && ros::Time::now() - last_traj_cmd_time_ < ros::Duration(traj_cmd_timeout_)) {
                 publishTrajSetpoint();
             } else {
@@ -359,8 +361,13 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
                 image_matcher_ = std::make_unique<px4_utils_land::Imgmatching>();
                 image_matcher_->init(nh_);
 
+                // Use latest YDLidar range data to set landing position
                 if (init_pos_set_) {
-                    image_matcher_->setLandPos(init_pos_.z());
+                    // Use current position minus lidar detected ground distance
+                    double land_height = pos_.z() - ranges_from_ydlidar;
+                    image_matcher_->setLandPos(land_height);
+                    ROS_INFO("[PX4 FSM]: Set landing position from YDLidar: %.2f m (current: %.2f m, range: %.2f m)", 
+                             land_height, pos_.z(), ranges_from_ydlidar);
                 } else {
                     image_matcher_->setLandPos(ground_height_);
                 }
@@ -556,6 +563,15 @@ void PX4CtrlFSM::globalPositionCallback(const sensor_msgs::NavSatFix::ConstPtr &
 void PX4CtrlFSM::globalSetpointCallback(const mavros_msgs::GlobalPositionTarget::ConstPtr &msg) {
     target_global_position_ = *msg;
     global_setpoint_received_ = true;
+}
+
+void PX4CtrlFSM::lidarCallback(const sensor_msgs::LaserScan::ConstPtr &msg) {
+    // Store the latest lidar data
+    latest_lidar_scan_ = msg;
+    last_lidar_time_ = ros::Time::now();
+    
+    // Get the latest range value directly from ranges array
+    ranges_from_ydlidar = msg->ranges.back();  // Get the last element as latest value
 }
 
 void PX4CtrlFSM::changeFSMState(PX4CtrlFSM::FSM_EXEC_STATE new_state) {
@@ -1290,7 +1306,7 @@ void PX4CtrlFSM::handlePrecisionPositioning(double mission_distance, int fsm_num
                 Eigen::Vector3d corrected_pos = pos_;
                 corrected_pos.x() += gps_correction.x(); // East correction
                 corrected_pos.y() += gps_correction.y(); // North correction
-                pos_.z() -= 0.005;
+                pos_.z() -= 0.01;
 
                 publishPoseSetpoint(corrected_pos, hold_yaw_);
 

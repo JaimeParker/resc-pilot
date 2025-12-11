@@ -64,6 +64,12 @@
         "cinttypes": "cpp",
         "typeindex": "cpp",
         "typeinfo": "cpp",
-        "variant": "cpp"
+        "variant": "cpp",
+        "strstream": "cpp",
+        "hash_map": "cpp",
+        "hash_set": "cpp",
+        "shared_mutex": "cpp",
+        "cfenv": "cpp",
+        "valarray": "cpp"
     }
 }

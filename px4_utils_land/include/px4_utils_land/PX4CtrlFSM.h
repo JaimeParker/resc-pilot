@@ -20,6 +20,7 @@
 #include <quadrotor_msgs/PositionCommand.h>
 #include <Eigen/Eigen>
 #include <visualization_msgs/Marker.h>
+#include <sensor_msgs/LaserScan.h>
 #include <random>
 #include <deque>
 
@@ -51,6 +52,7 @@ private:
     ros::Subscriber extended_state_sub_;
     ros::Subscriber global_position_sub_;
     ros::Subscriber global_setpoint_sub_;
+    ros::Subscriber lidar_sub_;  // YDLidar subscriber
     ros::Publisher pose_setpoint_pub_;
     ros::Publisher att_target_pub_;
     ros::Publisher traj_target_pub_;
@@ -132,6 +134,11 @@ private:
     double auto_mission_target_y_ = 0.0;
     double auto_mission_target_z_ = 1.0;
 
+    /* lidar data */
+    sensor_msgs::LaserScan::ConstPtr latest_lidar_scan_;
+    ros::Time last_lidar_time_;
+    double ranges_from_ydlidar = 0.0;  // Latest minimum range from lidar
+
     /* utils */
     std::vector<Eigen::Vector3d> init_pos_buffer_;
     int init_pos_buffer_max_size_ = 100;
@@ -211,6 +218,7 @@ public:
     void extendedStateCallback(const mavros_msgs::ExtendedState::ConstPtr &msg);
     void globalPositionCallback(const sensor_msgs::NavSatFix::ConstPtr &msg);
     void globalSetpointCallback(const mavros_msgs::GlobalPositionTarget::ConstPtr &msg);
+    void lidarCallback(const sensor_msgs::LaserScan::ConstPtr &msg);  // YDLidar callback
 
     void enterEditMode();
     void exitEditMode();
