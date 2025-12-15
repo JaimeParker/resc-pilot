@@ -315,8 +315,10 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
             }
             // get the distance to the target
             Eigen::Vector3d mission_target_pos = auto_mission_target_;
-            double mission_distance = (mission_target_pos - pos_).norm();
-            
+            double mission_distance = sqrt((mission_target_pos.x() - pos_.x()) * (mission_target_pos.x() - pos_.x()) +
+                                            (mission_target_pos.y() - pos_.y()) * (mission_target_pos.y() - pos_.y()));
+            // double mission_distance = (mission_target_pos - pos_).norm();
+                    
             Eigen::Vector3d target_pos(quad_pos_cmd_.position.x, quad_pos_cmd_.position.y, quad_pos_cmd_.position.z);
             double distance_to_target = (target_pos - pos_).norm();
             if (fsm_num % 200 == 0)
@@ -686,7 +688,7 @@ void PX4CtrlFSM::fsmVisionLand() {
     if (image_matcher_ && image_matcher_->isTargetMatched()) {
         hold_pos_ = adjustPositionWithPIControl(image_matcher_->getOffset());
         
-        hold_pos_.z() -= 0.001;
+        hold_pos_.z() -= 0.01;
         
         cv::Point2f offset = image_matcher_->getOffset();
         if (land_num % 99 == 0)
@@ -694,10 +696,9 @@ void PX4CtrlFSM::fsmVisionLand() {
                     << std::fixed << std::setprecision(3) << offset.x << ", " << offset.y 
                     << ") m, height: " << hold_pos_.z() << " m" << std::endl;
     } else {
-        hold_pos_.z() -= 0.001;
+        hold_pos_.z() -= 0.01;
         
-        static int no_beacon_count = 0;
-        if (++no_beacon_count % 100 == 0) {
+        if (land_num % 99 == 0) {
             std::cout << "[PX4 FSM]: No beacon detected, height: " 
                       << std::fixed << std::setprecision(3) << hold_pos_.z() << " m" << std::endl;
         }

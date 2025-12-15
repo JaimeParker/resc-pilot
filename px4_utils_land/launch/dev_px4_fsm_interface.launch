@@ -71,6 +71,9 @@
         <param name="land_topic" value="/trigger_landing" />
     </node>
 
+    <!-- Launch rosbag recording script -->
+    <node name="record_topics" pkg="px4_utils_land" type="record_topics.sh" output="screen" />
+
     <!--<node name="rviz" pkg="rviz" type="rviz" args="-d $(find px4_utils_land)/launch/test.rviz" required="true" /-->
 
 </launch>
