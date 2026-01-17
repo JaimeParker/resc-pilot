@@ -65,6 +65,12 @@
         
         <!-- Detection Parameters -->
         <param name="detection/min_area" value="30" type="double"/>
+
+        <!-- Time to wait (in seconds) after landed -->
+        <param name="px4fsm/landed_wait_time" value="10" type="int"/>
+
+        <!-- Use rtl to return -->
+        <param name="px4fsm/enable_auto_rtl" value="true" type="bool"/>
     </node>
 
     <node pkg="px4_utils_land" type="px4_fsm_interface_node_land" name="px4_fsm_interface" output="screen">
