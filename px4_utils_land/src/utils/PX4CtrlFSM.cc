@@ -211,7 +211,7 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
             } else if (state_.armed) {
                 std::cout << "[PX4 FSM]: Vehicle armed." << std::endl;
                 if (auto_rtl_) {
-                    changeFSMState(AUTO_TAKEOFF);
+                    changeFSMState(RTL);
                 }
                 else {
                     changeFSMState(TAKEOFF);
@@ -427,33 +427,21 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
         case DISARM:
             static bool disarm_attempted = false;
             static ros::Time disarm_start_time;
-            static ros::Time disarm_end_time;
             static bool get_end_time = false;
-            static bool setpoint_done = false;
             if (!state_.armed) {
-                if (!get_end_time) {
-                    disarm_end_time = ros::Time::now();
-                    get_end_time = true;
-                }
-                if (!return_start) {
-                    int remaining_sec = (int)(landed_wait_time_ - (ros::Time::now() - disarm_end_time).toSec());
-                    if (remaining_sec < 0 ) {
-                        return_start = true;
-                        std::cout << "\033[1;32m[PX4 FSM]: Return To Launch.\033[0m" << std::endl;
-                        if(enable_auto_rtl_) {
-                            auto_rtl_ = true;
-                            if(!setpoint_done) {
-                                setpoint_done = RTLSetLandingPoint();
-                            }
-                            changeFSMState(ARM);
-                        }
-                    } 
-                    else {
-                        static int last_printed_sec = -1; 
-                        if (remaining_sec != last_printed_sec) {
-                            std::cout << "[PX4 FSM]: Returning in " << remaining_sec << " second(s)." << std::endl;
-                            last_printed_sec = remaining_sec;
-                        }
+                static ros::Time disarm_end_time = ros::Time::now();
+                int remaining_sec = (int)(landed_wait_time_ - (ros::Time::now() - disarm_end_time).toSec());
+                if (remaining_sec < 0 && enable_auto_rtl_) {
+                    std::cout << "\033[1;32m[PX4 FSM]: Return To Launch.\033[0m" << std::endl;
+                    auto_rtl_ = true; 
+                    RTLSetLandingPoint();
+                    changeFSMState(ARM);
+                } 
+                if (remaining_sec >= 0 && enable_auto_rtl_) {
+                    static int last_printed_sec = -1; 
+                    if (remaining_sec != last_printed_sec) {
+                        std::cout << "[PX4 FSM]: Returning in " << remaining_sec << " second(s)." << std::endl;
+                        last_printed_sec = remaining_sec;
                     }
                 }
                 break;
@@ -488,9 +476,12 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
             handleEditMode();
             break;
 
-        case AUTO_TAKEOFF:
+        case RTL:
             static bool auto_takeoff_triggered = false;
             static ros::Time takeoff_start_time;
+            static bool rtl_start = false;
+            static bool auto_rtl_triggered = false;
+            static ros::Time rtl_start_time;
         
             if (!auto_takeoff_triggered) {
                 if (triggerPX4AutoTAKEOFF()) {
@@ -499,48 +490,41 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
                 }
                 break;
             }
+
+            if (rtl_start) {
+                if (!auto_rtl_triggered) {
+                    if (triggerPX4AutoRTL()) {
+                        rtl_start_time = ros::Time::now();
+                        auto_rtl_triggered = true;
+                    }
+                    break;
+                }
+
+                // Wait until PX4 complete rtl
+                if (!state_.armed) {
+                    std::cout << "\033[1;32m[PX4 FSM]: AUTO.RTL complete.\033[0m" << std::endl;
+                    auto_rtl_triggered = false;
+                    rtl_start = false;
+
+                    // Clear mission point
+                    mavros_msgs::WaypointClear clear_srv;
+                    if (wp_clear_client_.call(clear_srv) && clear_srv.response.success) {
+                        std::cout << "[PX4 FSM]: Mission point cleared." << std::endl;
+                    }
+                    enable_auto_rtl_ = false;
+                    changeFSMState(DISARM);
+                    break;
+                }
+            }
         
             // Wait until PX4 reach target alt
-            if (fabs(pos_.z() - init_pos_.z()  - auto_takeoff_alt_) < 0.5) {
+            else if (fabs(pos_.z() - init_pos_.z()  - auto_takeoff_alt_) < 0.5) {
                 std::cout << "\033[1;32m[PX4 FSM]: AUTO.TAKEOFF complete.\033[0m" << std::endl;
                 auto_takeoff_triggered = false;
-                changeFSMState(RTL);
-                break;
-            }
-        
-            // if ((ros::Time::now() - takeoff_start_time).toSec() > 30.0) {
-            //     std::cout << "\033[1;33m[PX4 FSM]: AUTO.TAKEOFF timeout.\033[0m" << std::endl;
-            //     auto_takeoff_triggered = false;
-            // }
-            
-            break;
-
-        case RTL:
-            static bool auto_rtl_triggered = false;
-            static ros::Time rtl_start_time;
-
-            if (!auto_rtl_triggered) {
-                if (triggerPX4AutoRTL()) {
-                    rtl_start_time = ros::Time::now();
-                    auto_rtl_triggered = true;
-                }
+                rtl_start = true;
                 break;
             }
 
-            // Wait until PX4 complete rtl
-            if (!state_.armed) {
-                std::cout << "\033[1;32m[PX4 FSM]: AUTO.RTL complete.\033[0m" << std::endl;
-                auto_rtl_triggered = false;
-
-                // Clear mission point
-                mavros_msgs::WaypointClear clear_srv;
-                if (wp_clear_client_.call(clear_srv) && clear_srv.response.success) {
-                    std::cout << "[PX4 FSM]: Mission point cleared." << std::endl;
-                }
-                changeFSMState(DISARM);
-                break;
-            }
-            
             break;
     }
 

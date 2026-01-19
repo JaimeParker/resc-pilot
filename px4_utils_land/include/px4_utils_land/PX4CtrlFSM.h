@@ -39,8 +39,8 @@ private:
     // static std::uniform_real_distribution<double> rtk_uniform_dist_; 
 
     /* flags */
-    enum FSM_EXEC_STATE { INIT, ARM, OFFBOARD, TAKEOFF, HOLD, RL_MOTION, TRAJ_CMD, AUTO_MISSION, SOFT_LAND, AUTO_LAND, DISARM, LANDED, EDIT, RTL, AUTO_TAKEOFF};
-    std::string state_str_[15] = {"INIT", "ARM", "OFFBOARD", "TAKEOFF", "HOLD", "RL_MOTION", "TRAJ_CMD", "AUTO_MISSION", "SOFT_LAND", "AUTO_LAND", "DISARM", "LANDED", "EDIT", "RTL", "AUTO_TAKEOFF"};
+    enum FSM_EXEC_STATE { INIT, ARM, OFFBOARD, TAKEOFF, HOLD, RL_MOTION, TRAJ_CMD, AUTO_MISSION, SOFT_LAND, AUTO_LAND, DISARM, LANDED, EDIT, RTL};
+    std::string state_str_[14] = {"INIT", "ARM", "OFFBOARD", "TAKEOFF", "HOLD", "RL_MOTION", "TRAJ_CMD", "AUTO_MISSION", "SOFT_LAND", "AUTO_LAND", "DISARM", "LANDED", "EDIT", "RTL"};
 
     /* ros utils */
     ros::Timer exec_timer_;
@@ -106,7 +106,6 @@ private:
     bool in_geo_fence_ = false;
     bool init_pos_set_ = false;
     ros::Time last_request_time_;
-    bool return_start = false;
 
     /* auto mission */
     bool enable_auto_mission_ = false;
