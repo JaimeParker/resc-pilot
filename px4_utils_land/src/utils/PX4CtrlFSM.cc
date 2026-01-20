@@ -28,6 +28,9 @@ void PX4CtrlFSM::init(ros::NodeHandle &nh) {
     getParamWithWarning(nh, "px4fsm/land_cmd_topic", land_cmd_topic_);
 
     getParamWithWarning(nh, "px4fsm/enable_auto_mission", enable_auto_mission_);
+
+    getParamWithWarning(nh, "px4fsm/enable_auto_rtl", enable_auto_rtl_);
+    getParamWithWarning(nh, "px4fsm/landed_wait_time", landed_wait_time_);
     
     // If auto mission is enabled, wait for preprocessing node to complete
     if (enable_auto_mission_) {
@@ -67,6 +70,10 @@ void PX4CtrlFSM::init(ros::NodeHandle &nh) {
     bool has_yaml_enu = nh.getParam("/global_gps/enu_relative/east", yaml_target_x) &&
                         nh.getParam("/global_gps/enu_relative/north", yaml_target_y) &&
                         nh.getParam("/global_gps/enu_relative/up", yaml_target_z);
+
+    nh.getParam("/global_gps/initial/latitude", global_initial_lat_);
+    nh.getParam("/global_gps/initial/longitude", global_initial_lon_);
+    nh.getParam("/global_gps/initial/altitude", global_initial_alt_);
     
     if (has_yaml_gps) {
         global_setpoint_lat_ = yaml_lat;
@@ -116,6 +123,8 @@ void PX4CtrlFSM::init(ros::NodeHandle &nh) {
     global_position_sub_ = nh.subscribe("/mavros/global_position/global", 10, &PX4CtrlFSM::globalPositionCallback, this);
     global_setpoint_sub_ = nh.subscribe("/mavros/setpoint_raw/global", 10, &PX4CtrlFSM::globalSetpointCallback, this);
     lidar_sub_ = nh.subscribe("/scan", 10, &PX4CtrlFSM::lidarCallback, this);  // Subscribe to YDLidar
+    wp_client_ = nh.serviceClient<mavros_msgs::WaypointPush>(rtl_topic_);
+    wp_clear_client_ = nh.serviceClient<mavros_msgs::WaypointClear>(clear_mission_topic_);
 
     // pose setpoint is high level, while traj target is mid level
     pose_setpoint_pub_ = nh.advertise<geometry_msgs::PoseStamped>(pose_setpoint_topic_, 1);
@@ -201,7 +210,12 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
                 }
             } else if (state_.armed) {
                 std::cout << "[PX4 FSM]: Vehicle armed." << std::endl;
-                changeFSMState(TAKEOFF);
+                if (auto_rtl_) {
+                    changeFSMState(RTL);
+                }
+                else {
+                    changeFSMState(TAKEOFF);
+                }
             }
             break;
 
@@ -413,8 +427,25 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
         case DISARM:
             static bool disarm_attempted = false;
             static ros::Time disarm_start_time;
-
-            if (!state_.armed) break;
+            static bool get_end_time = false;
+            if (!state_.armed) {
+                static ros::Time disarm_end_time = ros::Time::now();
+                int remaining_sec = (int)(landed_wait_time_ - (ros::Time::now() - disarm_end_time).toSec());
+                if (remaining_sec < 0 && enable_auto_rtl_) {
+                    std::cout << "\033[1;32m[PX4 FSM]: Return To Launch.\033[0m" << std::endl;
+                    auto_rtl_ = true; 
+                    RTLSetLandingPoint();
+                    changeFSMState(ARM);
+                } 
+                if (remaining_sec >= 0 && enable_auto_rtl_) {
+                    static int last_printed_sec = -1; 
+                    if (remaining_sec != last_printed_sec) {
+                        std::cout << "[PX4 FSM]: Returning in " << remaining_sec << " second(s)." << std::endl;
+                        last_printed_sec = remaining_sec;
+                    }
+                }
+                break;
+            }
         
             if (!disarm_attempted) {
                 disarm_attempted = true;
@@ -444,7 +475,57 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
         case EDIT:
             handleEditMode();
             break;
-            
+
+        case RTL:
+            static bool auto_takeoff_triggered = false;
+            static ros::Time takeoff_start_time;
+            static bool rtl_start = false;
+            static bool auto_rtl_triggered = false;
+            static ros::Time rtl_start_time;
+        
+            if (!auto_takeoff_triggered) {
+                if (triggerPX4AutoTAKEOFF()) {
+                    takeoff_start_time = ros::Time::now();
+                    auto_takeoff_triggered = true;
+                }
+                break;
+            }
+
+            if (rtl_start) {
+                if (!auto_rtl_triggered) {
+                    if (triggerPX4AutoRTL()) {
+                        rtl_start_time = ros::Time::now();
+                        auto_rtl_triggered = true;
+                    }
+                    break;
+                }
+
+                // Wait until PX4 complete rtl
+                if (!state_.armed) {
+                    std::cout << "\033[1;32m[PX4 FSM]: AUTO.RTL complete.\033[0m" << std::endl;
+                    auto_rtl_triggered = false;
+                    rtl_start = false;
+
+                    // Clear mission point
+                    mavros_msgs::WaypointClear clear_srv;
+                    if (wp_clear_client_.call(clear_srv) && clear_srv.response.success) {
+                        std::cout << "[PX4 FSM]: Mission point cleared." << std::endl;
+                    }
+                    enable_auto_rtl_ = false;
+                    changeFSMState(DISARM);
+                    break;
+                }
+            }
+        
+            // Wait until PX4 reach target alt
+            else if (fabs(pos_.z() - init_pos_.z()  - auto_takeoff_alt_) < 0.5) {
+                std::cout << "\033[1;32m[PX4 FSM]: AUTO.TAKEOFF complete.\033[0m" << std::endl;
+                auto_takeoff_triggered = false;
+                rtl_start = true;
+                break;
+            }
+
+            break;
     }
 
     if (landing_sequence_active_) {
@@ -832,6 +913,65 @@ bool PX4CtrlFSM::triggerPX4AutoLand() {
         std::cout << "\033[1;33m[PX4 FSM]: Failed to send AUTO.LAND to PX4.\033[0m" << std::endl;
         return false;
     }
+}
+
+bool PX4CtrlFSM::triggerPX4AutoRTL() {
+    mavros_msgs::SetMode rtl_set_mode;
+    rtl_set_mode.request.custom_mode = "AUTO.RTL"; 
+
+    if(set_mode_client_.call(rtl_set_mode) && rtl_set_mode.response.mode_sent) {
+        std::cout << "[PX4 FSM]: AUTO.RTL mode sent to PX4." << std::endl;
+        return true;
+    } else {
+        std::cout << "\033[1;33m[PX4 FSM]: Failed to send AUTO.RTL to PX4.\033[0m" << std::endl;
+        return false;
+    }
+}
+
+bool PX4CtrlFSM::triggerPX4AutoTAKEOFF() {
+    mavros_msgs::SetMode takeoff_mode;
+    takeoff_mode.request.custom_mode = "AUTO.TAKEOFF";
+    
+    if (set_mode_client_.call(takeoff_mode) && takeoff_mode.response.mode_sent) {
+        std::cout << "[PX4 FSM]: AUTO.TAKEOFF mode sent to PX4." << std::endl;
+        return true;
+    } else {
+        std::cout << "\033[1;33m[PX4 FSM]: Failed to send AUTO.TAKEOFF to PX4.\033[0m" << std::endl;
+        return false;
+    }
+}
+
+bool PX4CtrlFSM::RTLSetLandingPoint() {
+    mavros_msgs::WaypointPush wp_srv;
+    
+    mavros_msgs::Waypoint wp_useless;
+    wp_useless.frame = mavros_msgs::Waypoint::FRAME_GLOBAL_REL_ALT;
+    wp_useless.command = mavros_msgs::CommandCode::NAV_WAYPOINT;
+    wp_useless.is_current = false;
+    wp_useless.autocontinue = false;
+    wp_useless.x_lat = current_global_position_.latitude;
+    wp_useless.y_long = current_global_position_.longitude;
+    wp_useless.z_alt = 0;
+    wp_srv.request.waypoints.push_back(wp_useless);
+
+    // Return Target
+    mavros_msgs::Waypoint wp_land;
+    wp_land.frame = mavros_msgs::Waypoint::FRAME_GLOBAL_REL_ALT;
+    wp_land.command = mavros_msgs::CommandCode::NAV_LAND; 
+    wp_land.is_current = true;
+    wp_land.autocontinue = false;
+    wp_land.x_lat = global_initial_lat_;
+    wp_land.y_long = global_initial_lon_;
+    wp_land.z_alt = 0 ; 
+    //wp_land.param4 = 90.0;
+    wp_srv.request.waypoints.push_back(wp_land);
+
+    if (wp_client_.call(wp_srv) && wp_srv.response.success) {
+        std::cout << "Landing point set." << std::endl;
+        return true;
+    }
+    else
+        return false;
 }
 
 bool PX4CtrlFSM::triggerPX4Disarm() {

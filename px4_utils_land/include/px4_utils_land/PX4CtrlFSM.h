@@ -27,6 +27,11 @@
 #include "px4_utils_land/Convertor.h"
 #include "px4_utils_land/ImgMatching.h"
 
+#include <mavros_msgs/Waypoint.h>
+#include <mavros_msgs/WaypointPush.h>
+#include <mavros_msgs/CommandCode.h>
+#include <mavros_msgs/WaypointClear.h>
+
 class PX4CtrlFSM {
 private:
 
@@ -34,8 +39,8 @@ private:
     // static std::uniform_real_distribution<double> rtk_uniform_dist_; 
 
     /* flags */
-    enum FSM_EXEC_STATE { INIT, ARM, OFFBOARD, TAKEOFF, HOLD, RL_MOTION, TRAJ_CMD, AUTO_MISSION, SOFT_LAND, AUTO_LAND, DISARM, LANDED, EDIT};
-    std::string state_str_[13] = {"INIT", "ARM", "OFFBOARD", "TAKEOFF", "HOLD", "RL_MOTION", "TRAJ_CMD", "AUTO_MISSION", "SOFT_LAND", "AUTO_LAND", "DISARM", "LANDED", "EDIT"};
+    enum FSM_EXEC_STATE { INIT, ARM, OFFBOARD, TAKEOFF, HOLD, RL_MOTION, TRAJ_CMD, AUTO_MISSION, SOFT_LAND, AUTO_LAND, DISARM, LANDED, EDIT, RTL};
+    std::string state_str_[14] = {"INIT", "ARM", "OFFBOARD", "TAKEOFF", "HOLD", "RL_MOTION", "TRAJ_CMD", "AUTO_MISSION", "SOFT_LAND", "AUTO_LAND", "DISARM", "LANDED", "EDIT", "RTL"};
 
     /* ros utils */
     ros::Timer exec_timer_;
@@ -59,6 +64,8 @@ private:
     ros::Publisher global_setpoint_pub_;
     ros::Rate rate_ = ros::Rate(20);
     ros::Time last_traj_cmd_time_;
+    ros::ServiceClient wp_client_;
+    ros::ServiceClient wp_clear_client_;
 
     /* px4 mavros messages */
     mavros_msgs::State state_;
@@ -78,6 +85,10 @@ private:
     double global_setpoint_lat_ = 0.0;
     double global_setpoint_lon_ = 0.0;
     double global_setpoint_alt_ = 0.0;
+
+    double global_initial_lat_ = 0.0;
+    double global_initial_lon_ = 0.0;
+    double global_initial_alt_ = 0.0;
 
     /* state */
     FSM_EXEC_STATE exec_state_ = INIT;
@@ -100,6 +111,12 @@ private:
     bool enable_auto_mission_ = false;
     Eigen::Vector3d auto_mission_target_;
     bool auto_mission_started_ = false;
+
+    /* auto rtl */
+    double auto_takeoff_alt_ = 2.5;
+    bool enable_auto_rtl_ = false;
+    int landed_wait_time_ = 0;
+    bool auto_rtl_ = false;
 
     /* params */
     double target_thresh_ = 0.50;
@@ -130,6 +147,8 @@ private:
     std::string att_target_topic_ = "/mavros/setpoint_raw/attitude";
     std::string land_cmd_topic_ = "/trigger_landing";
     std::string extended_state_topic_ = "/mavros/extended_state";
+    std::string rtl_topic_ = "/mavros/mission/push";
+    std::string clear_mission_topic_ = "/mavros/mission/clear";
     double auto_mission_target_x_ = 0.0;
     double auto_mission_target_y_ = 0.0;
     double auto_mission_target_z_ = 1.0;
@@ -246,6 +265,10 @@ public:
             ROS_WARN_STREAM("Failed to get param: " << param_name);
         }
     }
+
+    bool triggerPX4AutoRTL();
+    bool triggerPX4AutoTAKEOFF();
+    bool RTLSetLandingPoint();
 };
 
 
