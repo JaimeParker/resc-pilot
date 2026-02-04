@@ -31,6 +31,8 @@ void PX4CtrlFSM::init(ros::NodeHandle &nh) {
 
     getParamWithWarning(nh, "px4fsm/enable_auto_rtl", enable_auto_rtl_);
     getParamWithWarning(nh, "px4fsm/landed_wait_time", landed_wait_time_);
+
+    getParamWithWarning(nh, "px4fsm/range_threshold", range_threshold_);
     
     // If auto mission is enabled, wait for preprocessing node to complete
     if (enable_auto_mission_) {
@@ -374,7 +376,7 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
         case SOFT_LAND:
             //TODO(zhiyuan 7_16):create a state & write the alignment logic
             if (!image_matcher_) {
-                image_matcher_ = std::make_unique<px4_utils_land::Imgmatching>();
+                image_matcher_ = std::make_unique<px4_utils_land::Imgyolodetect>();
                 image_matcher_->init(nh_);
 
                 // Use latest YDLidar range data to set landing position
@@ -760,7 +762,7 @@ void PX4CtrlFSM::fsmVisionLand() {
         hold_pos_ = pos_;  
         land_start_time = ros::Time::now();
         land_initialized = true;
-        std::cout << "[PX4 FSM]: HSV beacon landing initialized at [" 
+        std::cout << "[PX4 FSM]: YOLO beacon landing initialized at [" 
                   << hold_pos_.x() << ", " << hold_pos_.y() << ", " << hold_pos_.z() << "]" << std::endl;
     }
 
@@ -769,7 +771,7 @@ void PX4CtrlFSM::fsmVisionLand() {
     if (image_matcher_ && image_matcher_->isTargetMatched()) {
         hold_pos_ = adjustPositionWithPIControl(image_matcher_->getOffset());
         
-        hold_pos_.z() -= 0.01;
+        hold_pos_.z() -= 0.003;
         
         cv::Point2f offset = image_matcher_->getOffset();
         if (land_num % 99 == 0)
@@ -777,7 +779,7 @@ void PX4CtrlFSM::fsmVisionLand() {
                     << std::fixed << std::setprecision(3) << offset.x << ", " << offset.y 
                     << ") m, height: " << hold_pos_.z() << " m" << std::endl;
     } else {
-        hold_pos_.z() -= 0.01;
+        hold_pos_.z() -= 0.005;
         
         if (land_num % 99 == 0) {
             std::cout << "[PX4 FSM]: No beacon detected, height: " 
@@ -1416,6 +1418,32 @@ Eigen::Vector2d PX4CtrlFSM::calculateGPSVector(const sensor_msgs::NavSatFix& cur
     return Eigen::Vector2d(dx, dy);
 }
 
+bool PX4CtrlFSM::checkHeightForTargetReached()
+{
+    // Check if we have latest LiDAR data
+    if (!latest_lidar_scan_)
+        return false;
+        
+    // Check if data is fresh enough (within 1 second)
+    if ((ros::Time::now() - last_lidar_time_).toSec() > 1.0)
+    {
+        ROS_WARN("[SimpleEgoPlanner] Laser scan data is too old!");
+        return false;
+    }
+    
+    // Check if any distance in ranges array is less than 2.0m
+    for (const auto& range : latest_lidar_scan_->ranges)
+    {
+        if (range > 0.1 && range < range_threshold_)  // Filter out invalid data, check valid distances
+        {
+            ROS_INFO("[SimpleEgoPlanner] Target reached! Height: %.2fm. Ready for GPS correction.", range);
+            return true;
+        }
+    }
+    
+    return false;
+}
+
 void PX4CtrlFSM::handlePrecisionPositioning(double mission_distance, int fsm_num) {          // Enter precision mode at target_thresh_
     if (mission_distance < target_thresh_) {
         target_thresh_ = target_thresh_ * 2;
@@ -1426,7 +1454,7 @@ void PX4CtrlFSM::handlePrecisionPositioning(double mission_distance, int fsm_num
                 std::cout << "[PX4 FSM]: Local distance: " << std::fixed << std::setprecision(2) 
                           << mission_distance << " m, GPS distance: " << gps_distance << " m" << std::endl;
             
-            if (gps_distance < 0.1) { // 10cm threshold
+            if (gps_distance < 0.1 && checkHeightForTargetReached()) { // 10cm threshold
                 traj_cmd_received_ = false;
                 std::cout << "\033[1;32m[PX4 FSM]: GPS position accurate (<10cm), switching to SOFT_LAND.\033[0m" << std::endl;
                 changeFSMState(SOFT_LAND);
