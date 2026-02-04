@@ -3,6 +3,9 @@ project(px4_utils_land)
 
 add_compile_options(-std=c++14)
 
+# Set path to ONNX Runtime 1.12.1
+set(ONNXRUNTIME_DIR "/root/uva_ws/onnxruntime-linux-x64-1.12.1")
+
 ##zhiyuan: build cv_bridge and image_transport
 find_package(Eigen3 REQUIRED
         Opencv REQUIRED
@@ -36,7 +39,10 @@ include_directories(
         ${catkin_INCLUDE_DIRS}
         ${EIGEN3_INCLUDE_DIRS}
         ${OpenCV_INCLUDE_DIRS}
+        ${ONNXRUNTIME_DIR}/include
 )
+
+link_directories(${ONNXRUNTIME_DIR}/lib)
 
 add_library(${PROJECT_NAME} SHARED
         src/utils/Convertor.cc
@@ -51,11 +57,14 @@ add_library(${PROJECT_NAME} SHARED
         include/px4_utils_land/PX4CtrlFSM.h
         src/utils/ImgMatching.cc
         include/px4_utils_land/ImgMatching.h
+        src/utils/ImgYoloDetect.cc
+        include/px4_utils_land/ImgYoloDetect.h
 )
 target_link_libraries(${PROJECT_NAME}
         ${catkin_LIBRARIES}
         ${EIGEN3_LIBRARIES}
         ${OpenCV_LIBRARIES}
+        onnxruntime
 )
 
 
@@ -100,3 +109,6 @@ target_link_libraries(test_imgmatching ${catkin_LIBRARIES} ${PROJECT_NAME})
 # Unified HSV beacon detection test program (supports ROS live, rosbag, and offline)
 add_executable(test_hsv_unified example/test_hsv_unified.cc)
 target_link_libraries(test_hsv_unified ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
+
+add_executable(test_yolo_unified example/test_yolo_unified.cc)
+target_link_libraries(test_yolo_unified ${catkin_LIBRARIES} ${PROJECT_NAME})

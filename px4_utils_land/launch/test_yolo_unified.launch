@@ -1,0 +1,23 @@
+<!-- 
+YOLO Unified Tester Launch File
+测试YOLO检测的统一测试程序
+
+支持的运行模式：
+离线文件模式：处理图片、视频文件或摄像头
+
+-->
+
+<launch>
+    <node pkg="px4_utils_land" name="test_yolo_unified" type="test_yolo_unified" output="screen">
+    <!-- ========================= 启动参数定义 ========================= -->
+    <!-- 路径参数 -->
+    <param name="video_path" value="/root/uva_ws/src/resc-pilot/px4_utils_land/video/input_video1.mp4" type="str"/>
+    <param name="model_path" value="/root/uva_ws/src/resc-pilot/px4_utils_land/models/best.onnx" type="str"/>
+    
+    <!-- ========================= yolo检测参数 ========================= -->
+    <!-- 红色信标默认参数 (可根据需要调整为白色或绿色信标参数) -->
+    <param name="conf_thres" value="0.3" type="double"/>
+    <param name="iou_thres" value="0.4" type="double"/>
+
+    </node>
+</launch>

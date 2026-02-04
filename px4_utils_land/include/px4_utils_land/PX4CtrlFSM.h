@@ -26,6 +26,7 @@
 
 #include "px4_utils_land/Convertor.h"
 #include "px4_utils_land/ImgMatching.h"
+#include "px4_utils_land/ImgYoloDetect.h"
 
 #include <mavros_msgs/Waypoint.h>
 #include <mavros_msgs/WaypointPush.h>
@@ -113,7 +114,7 @@ private:
     bool auto_mission_started_ = false;
 
     /* auto rtl */
-    double auto_takeoff_alt_ = 2.5;
+    double auto_takeoff_alt_ = 2.2;
     bool enable_auto_rtl_ = false;
     int landed_wait_time_ = 0;
     bool auto_rtl_ = false;
@@ -157,6 +158,7 @@ private:
     sensor_msgs::LaserScan::ConstPtr latest_lidar_scan_;
     ros::Time last_lidar_time_;
     double ranges_from_ydlidar = 0.0;  // Latest minimum range from lidar
+    double range_threshold_ = 2.0;  // New parameter for range threshold
 
     /* utils */
     std::vector<Eigen::Vector3d> init_pos_buffer_;
@@ -208,9 +210,9 @@ private:
     std::string landing_state_str_[5] = {"RETURN_TO_TAKEOFF", "LAND_AT_TAKEOFF", "TAKEOFF_AGAIN", "MOVE_TO_TARGET", "LAND_AT_TARGET"};
     LandingSequenceState landing_sequence_state_ = RETURN_TO_TAKEOFF;
 
-    /* to init Imgmatching */
+    /* to init Imgyolodetect */
     ros::NodeHandle nh_;  
-    std::unique_ptr<px4_utils_land::Imgmatching> image_matcher_; 
+    std::unique_ptr<px4_utils_land::Imgyolodetect> image_matcher_; 
 
 public:
     void init(ros::NodeHandle &nh);
@@ -269,6 +271,7 @@ public:
     bool triggerPX4AutoRTL();
     bool triggerPX4AutoTAKEOFF();
     bool RTLSetLandingPoint();
+    bool checkHeightForTargetReached();
 };
 
 

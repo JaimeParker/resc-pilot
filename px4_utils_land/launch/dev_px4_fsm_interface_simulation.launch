@@ -18,6 +18,15 @@
         <param name="camera/fy_" value="422.21" type="double"/>
         <param name="camera/use_clache_" value="false" type="bool" />
         <param name="camera/image_topic" value="/camera/rgb/image_raw" type="string" />
+
+        <!-- Height check Parameter -->
+        <param name="px4fsm/range_threshold" value="2.0" type="double"/>
+    
+        <!-- YOLO Object Detection Parameters -->
+        <param name="yolo/model_path" value="/root/uva_ws/src/resc-pilot/px4_utils_land/models/best_sim.onnx" type="string" />
+        <param name="yolo/conf_thres" value="0.25" type="double" />
+        <param name="yolo/iou_thres" value="0.5" type="double" />
+        <param name="yolo/opnumthreads" value="4" type="int" />
     
         <!-- HSV Color Segmentation Parameters for White Beacon Detection -->
         <!-- <param name="hsv/h_min" value="0" type="int"/>
@@ -28,12 +37,12 @@
         <param name="hsv/v_max" value="255" type="int"/> -->
 
         <!-- HSV Color Segmentation Parameters for Red Beacon Detection -->
-        <param name="hsv/h_min" value="0" type="int"/>
+        <!-- <param name="hsv/h_min" value="0" type="int"/>
         <param name="hsv/h_max" value="180" type="int"/>
         <param name="hsv/s_min" value="200" type="int"/>  
         <param name="hsv/s_max" value="255" type="int"/>
         <param name="hsv/v_min" value="200" type="int"/>  
-        <param name="hsv/v_max" value="255" type="int"/>
+        <param name="hsv/v_max" value="255" type="int"/> -->
 
         <!-- HSV Color Segmentation Parameters for Yellow Beacon Detection -->
         <!-- <param name="hsv/h_min" value="165" type="int"/>
