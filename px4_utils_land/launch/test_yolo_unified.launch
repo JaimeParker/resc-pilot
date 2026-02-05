@@ -11,8 +11,8 @@ YOLO Unified Tester Launch File
     <node pkg="px4_utils_land" name="test_yolo_unified" type="test_yolo_unified" output="screen">
     <!-- ========================= 启动参数定义 ========================= -->
     <!-- 路径参数 -->
-    <param name="video_path" value="/root/uva_ws/src/resc-pilot/px4_utils_land/video/input_video1.mp4" type="str"/>
-    <param name="model_path" value="/root/uva_ws/src/resc-pilot/px4_utils_land/models/best.onnx" type="str"/>
+    <param name="video_name" value="input_video1.mp4" type="str"/>
+    <param name="model_name" value="best_real.onnx" type="str"/>
     
     <!-- ========================= yolo检测参数 ========================= -->
     <!-- 红色信标默认参数 (可根据需要调整为白色或绿色信标参数) -->

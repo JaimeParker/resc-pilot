@@ -28,12 +28,12 @@ private:
     int opnumthreads_;
 
     Ort::Env env{ORT_LOGGING_LEVEL_WARNING, "YOLO"};
-    Ort::SessionOptions session_options;
-    std::unique_ptr<Ort::Session> session;
-    std::string input_name, output_name;
-    std::vector<const char*> input_node_names, output_node_names;
+    Ort::SessionOptions session_options_;
+    std::unique_ptr<Ort::Session> session_;
+    std::string input_name_, output_name_;
+    std::vector<const char*> input_node_names_, output_node_names_;
 
-    std::string model_path_;    
+    std::string model_name_;    
     double conf_thres_;
     double iou_thres_;
     cv::Size input_size_;

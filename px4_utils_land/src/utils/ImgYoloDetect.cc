@@ -13,7 +13,9 @@ void Imgyolodetect::init(ros::NodeHandle& nh) {
     }
     
     // 获取yolo模型参数
-    getParamWithWarning(nh, "yolo/model_path", model_path_);
+    getParamWithWarning(nh, "yolo/model_name", model_name_);
+    std::string op_path = ros::package::getPath("px4_utils_land");
+    std::string model_path = op_path + "/models/" + model_name_;
     getParamWithWarning(nh, "yolo/conf_thres", conf_thres_);
     getParamWithWarning(nh, "yolo/iou_thres", iou_thres_);
     getParamWithWarning(nh, "yolo/opnumthreads", opnumthreads_);
@@ -24,14 +26,14 @@ void Imgyolodetect::init(ros::NodeHandle& nh) {
     
     // 初始化YOLO
     try {
-        session_options.SetIntraOpNumThreads(opnumthreads_); 
-        session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
-        session = std::make_unique<Ort::Session>(env, model_path_.c_str(), session_options);
+        session_options_.SetIntraOpNumThreads(opnumthreads_); 
+        session_options_.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
+        session_ = std::make_unique<Ort::Session>(env, model_path.c_str(), session_options_);
         Ort::AllocatorWithDefaultOptions allocator;
-        input_name = session->GetInputName(0, allocator);
-        input_node_names = {input_name.c_str()};
-        output_name = session->GetOutputName(0, allocator);
-        output_node_names = {output_name.c_str()};
+        input_name_ = session_->GetInputName(0, allocator);
+        input_node_names_ = {input_name_.c_str()};
+        output_name_ = session_->GetOutputName(0, allocator);
+        output_node_names_ = {output_name_.c_str()};
     }
     catch (const std::exception& e) {
         ROS_ERROR_STREAM("YOLO Beacon Detection Init Error: " << e.what());
@@ -45,7 +47,6 @@ void Imgyolodetect::init(ros::NodeHandle& nh) {
 
 Imgyolodetect::Imgyolodetect() : beacon_detected_(false) {
     // 初始化YOLO参数
-    model_path_ = "/root/uva_ws/src/resc-pilot/px4_utils_land/models/best.onnx";
     conf_thres_ = 0.5;
     iou_thres_ = 0.4;
     opnumthreads_ = 4;
@@ -85,7 +86,7 @@ void Imgyolodetect::imageCallback(const sensor_msgs::ImageConstPtr& msg) {
             memory_info, (float*)blob.data, blob.total(), input_shape.data(), input_shape.size());
         
         // 推理
-        auto output_tensors = session->Run(Ort::RunOptions{nullptr}, input_node_names.data(), &input_tensor, 1, output_node_names.data(), 1);
+        auto output_tensors = session_->Run(Ort::RunOptions{nullptr}, input_node_names_.data(), &input_tensor, 1, output_node_names_.data(), 1);
 
         float* all_data = output_tensors[0].GetTensorMutableData<float>();
         auto shape = output_tensors[0].GetTensorTypeAndShapeInfo().GetShape();
