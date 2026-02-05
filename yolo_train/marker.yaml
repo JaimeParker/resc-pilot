@@ -1,0 +1,6 @@
+path: E:\pycode\yolo\dataset_real
+train: images/train
+val: images/val
+
+nc: 1
+names: ['marker']  # class names
