@@ -1475,7 +1475,7 @@ void PX4CtrlFSM::handlePrecisionPositioning(double mission_distance, int fsm_num
                 Eigen::Vector3d corrected_pos = pos_;
                 corrected_pos.x() += gps_correction.x(); // East correction
                 corrected_pos.y() += gps_correction.y(); // North correction
-                pos_.z() -= 0.01;
+                corrected_pos.z() -= 0.01;
 
                 publishPoseSetpoint(corrected_pos, hold_yaw_);
 

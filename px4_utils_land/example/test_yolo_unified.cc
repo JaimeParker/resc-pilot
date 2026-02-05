@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <ros/package.h>
 #include <opencv2/opencv.hpp>
 #include <onnxruntime_cxx_api.h>
 
@@ -10,8 +11,11 @@ class YOLO_DETECT {
 public:
     YOLO_DETECT() : nh_("~") {
         // 获取参数
-        nh_.param<std::string>("video_path", video_path_, "/root/uva_ws/src/resc-pilot/px4_utils_land/video/test_video.mp4");
-        nh_.param<std::string>("model_path", model_path_, "/root/uva_ws/src/resc-pilot/px4_utils_land/models/best.onnx");
+        nh_.param<std::string>("video_name", video_name_, "test_video.mp4");
+        std::string op_path = ros::package::getPath("px4_utils_land");
+        video_path_ = op_path + "/videos/" + video_name_;
+        nh_.param<std::string>("model_name", model_name_, "best_real.onnx");
+        model_path_ = op_path + "/models/" + model_name_;
         nh_.param<float>("conf_thres", conf_thres_, 0.5);
         nh_.param<float>("iou_thres", iou_thres_, 0.4);
         
@@ -162,6 +166,8 @@ private:
 
 private:
     ros::NodeHandle nh_;
+    std::string video_name_;
+    std::string model_name_;
     std::string video_path_;
     std::string model_path_;
     Ort::Env env{ORT_LOGGING_LEVEL_WARNING, "YOLO"};

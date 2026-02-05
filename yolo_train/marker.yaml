@@ -1,4 +1,4 @@
-path: E:\pycode\yolo\dataset_real
+path: ./dataset
 train: images/train
 val: images/val
 

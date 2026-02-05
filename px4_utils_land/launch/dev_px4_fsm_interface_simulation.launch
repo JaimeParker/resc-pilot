@@ -23,7 +23,7 @@
         <param name="px4fsm/range_threshold" value="2.0" type="double"/>
     
         <!-- YOLO Object Detection Parameters -->
-        <param name="yolo/model_path" value="/root/uva_ws/src/resc-pilot/px4_utils_land/models/best_sim.onnx" type="string" />
+        <param name="yolo/model_name" value="best_sim.onnx" type="string" />
         <param name="yolo/conf_thres" value="0.25" type="double" />
         <param name="yolo/iou_thres" value="0.5" type="double" />
         <param name="yolo/opnumthreads" value="4" type="int" />
