@@ -71,5 +71,6 @@
         "shared_mutex": "cpp",
         "cfenv": "cpp",
         "valarray": "cpp"
-    }
+    },
+    "cmake.sourceDirectory": "/home/xcg/JZ/resc-pilot/px4_utils_land"
 }
