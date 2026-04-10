@@ -1,0 +1,36 @@
+<launch>
+  <!-- 简化版ego-planner启动文件 -->
+  <!-- 用于替代复杂的ego-planner，为PX4CtrlFSM提供轨迹规划服务 -->
+  
+  <!-- 参数设置 -->
+  <arg name="max_vel" default="3.0" />
+  <arg name="max_acc" default="4.5" />
+  <arg name="goal_tolerance" default="0.5" />
+  <arg name="dt" default="0.1" />
+  <arg name="publish_rate" default="20.0" />
+  <arg name="use_rviz" default="false" />
+  <arg name="range_threshold" default="2.0" />
+  
+  <!-- 启动简化版ego-planner节点 -->
+  <node pkg="simple_ego_planner" name="simple_ego_planner" type="simple_ego_planner_node" output="screen">
+    <param name="max_vel" value="$(arg max_vel)" />
+    <param name="max_acc" value="$(arg max_acc)" />
+    <param name="goal_tolerance" value="$(arg goal_tolerance)" />
+    <param name="dt" value="$(arg dt)" />
+    <param name="publish_rate" value="$(arg publish_rate)" />
+    
+    <!-- 话题重映射确保与PX4CtrlFSM兼容 -->
+    <remap from="~pose" to="/mavros/local_position/pose" />
+    <remap from="~goal" to="/move_base_simple/goal" />
+    <remap from="~pos_cmd" to="/planning/pos_cmd" />
+  </node>
+  
+  <group if="$(arg use_rviz)">
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find simple_ego_planner)/launch/test.rviz" required="true" />
+  </group>
+  
+  <!-- 静态变换发布器 (确保坐标系一致) -->
+  <node pkg="tf2_ros" type="static_transform_publisher" name="world_to_map" 
+        args="0 0 0 0 0 0 1 world map" />
+        
+</launch>
