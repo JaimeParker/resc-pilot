@@ -374,24 +374,27 @@ void PX4CtrlFSM::execCallback(const ros::TimerEvent &) {
             break;
 
         case SOFT_LAND:
-            //TODO(zhiyuan 7_16):create a state & write the alignment logic
-            if (!image_matcher_) {
-                image_matcher_ = std::make_unique<px4_utils_land::Imgyolodetect>();
-                image_matcher_->init(nh_);
+            // 视觉降落路径已禁用：SOFT_LAND 直接走软降落流程。
+            // 依据：最后降落阶段优先保证稳定性与可控性，避免 YOLO / 图像匹配失败阻断落地。
+            // 下面这段视觉初始化与对准逻辑保留为注释，便于后续恢复。
+            // if (!image_matcher_) {
+            //     image_matcher_ = std::make_unique<px4_utils_land::Imgyolodetect>();
+            //     image_matcher_->init(nh_);
+            //
+            //     // Use latest YDLidar range data to set landing position
+            //     if (init_pos_set_) {
+            //         // Use current position minus lidar detected ground distance
+            //         double land_height = pos_.z() - ranges_from_ydlidar;
+            //         image_matcher_->setLandPos(land_height);
+            //         ROS_INFO("[PX4 FSM]: Set landing position from YDLidar: %.2f m (current: %.2f m, range: %.2f m)",
+            //                  land_height, pos_.z(), ranges_from_ydlidar);
+            //     } else {
+            //         image_matcher_->setLandPos(ground_height_);
+            //     }
+            // }
 
-                // Use latest YDLidar range data to set landing position
-                if (init_pos_set_) {
-                    // Use current position minus lidar detected ground distance
-                    double land_height = pos_.z() - ranges_from_ydlidar;
-                    image_matcher_->setLandPos(land_height);
-                    ROS_INFO("[PX4 FSM]: Set landing position from YDLidar: %.2f m (current: %.2f m, range: %.2f m)", 
-                             land_height, pos_.z(), ranges_from_ydlidar);
-                } else {
-                    image_matcher_->setLandPos(ground_height_);
-                }
-            }
-
-            fsmVisionLand();
+            // fsmVisionLand();
+            fsmSoftLand();
             break;
 
         case AUTO_LAND:
@@ -698,7 +701,8 @@ void PX4CtrlFSM::publishTrajSetpoint() {
     traj_target_.position.x = quad_pos_cmd_.position.x;
     traj_target_.position.y = quad_pos_cmd_.position.y;
     // planner normal z(near 0 initially) -> rtk z(may be -10 to 10 m although on the ground)
-    traj_target_.position.z = quad_pos_cmd_.position.z + origin_point_.z;
+    // traj_target_.position.z = quad_pos_cmd_.position.z + origin_point_.z;
+    traj_target_.position.z = quad_pos_cmd_.position.z;
 
     traj_target_.velocity.x = quad_pos_cmd_.velocity.x;
     traj_target_.velocity.y = quad_pos_cmd_.velocity.y;
@@ -722,6 +726,8 @@ void PX4CtrlFSM::fsmSoftLand() {
     static ros::Time land_start_time;
     static bool near_ground = false;
     static ros::Time ground_detect_time;
+    static int land_num = 0;
+    land_num++;
 
     if (!land_initialized) {
         hold_pos_ = pos_;  // Lock x, y
@@ -735,7 +741,34 @@ void PX4CtrlFSM::fsmSoftLand() {
     // Gradually descend
     hold_pos_.z() -= 0.005;
 
+    // Use RTK for bounded lateral correction during landing.
+    // The correction is recomputed every cycle and clamped so a single update cannot move too far.
+    if (global_position_received_ && global_setpoint_received_) {
+        Eigen::Vector2d raw_rtk_correction = calculateGPSVector(current_global_position_, target_global_position_);
+        Eigen::Vector2d limited_rtk_correction = raw_rtk_correction;
+
+        limited_rtk_correction.x() = std::max(-landing_rtk_max_step_, std::min(landing_rtk_max_step_, limited_rtk_correction.x()));
+        limited_rtk_correction.y() = std::max(-landing_rtk_max_step_, std::min(landing_rtk_max_step_, limited_rtk_correction.y()));
+        if (limited_rtk_correction.norm() > landing_rtk_max_step_) {
+            limited_rtk_correction = limited_rtk_correction.normalized() * landing_rtk_max_step_;
+        }
+
+        hold_pos_.x() = pos_.x() + limited_rtk_correction.x();
+        hold_pos_.y() = pos_.y() + limited_rtk_correction.y();
+
+        if (land_num % 50 == 0) {
+            std::cout << "[PX4 FSM]: RTK landing correction raw(dx=" << std::fixed << std::setprecision(3)
+                      << raw_rtk_correction.x() << ", dy=" << raw_rtk_correction.y()
+                      << ") limited(dx=" << limited_rtk_correction.x()
+                      << ", dy=" << limited_rtk_correction.y() << ")" << std::endl;
+        }
+    } else if (land_num % 50 == 0) {
+        std::cout << "[PX4 FSM]: RTK landing correction skipped because global GPS data is unavailable." << std::endl;
+    }
+
     publishPoseSetpoint(hold_pos_);
+
+    const bool landing_height_available = hasFreshLandingHeightMeasurement();
 
     // Check PX4's internal land detection
     if (extended_state_.landed_state == mavros_msgs::ExtendedState::LANDED_STATE_ON_GROUND) {
@@ -745,15 +778,38 @@ void PX4CtrlFSM::fsmSoftLand() {
         return;
     }
 
-    // Safety timeout
-    if ((ros::Time::now() - land_start_time).toSec() > soft_landing_timeout_) {
-        std::cout << "[PX4 FSM]: Soft landing timeout. Switching to AUTO.LAND." << std::endl;
+    // Keep SOFT_LAND when altitude data is missing or stale.
+    if (landing_height_available && checkHeightForTargetReached()) {
+        std::cout << "[PX4 FSM]: Height threshold reached, switching to AUTO.LAND." << std::endl;
         land_initialized = false;
         changeFSMState(AUTO_LAND);
+        return;
+    }
+
+    // Safety timeout
+    if ((ros::Time::now() - land_start_time).toSec() > soft_landing_timeout_) {
+        if (landing_height_available) {
+            std::cout << "[PX4 FSM]: Soft landing timeout. Switching to AUTO.LAND." << std::endl;
+            land_initialized = false;
+            changeFSMState(AUTO_LAND);
+        } else {
+            std::cout << "[PX4 FSM]: Soft landing timeout but landing height data is unavailable; keep SOFT_LAND." << std::endl;
+            land_start_time = ros::Time::now();
+        }
     }
 }
 
+bool PX4CtrlFSM::hasFreshLandingHeightMeasurement() const {
+    if (!latest_lidar_scan_) {
+        return false;
+    }
+
+    return (ros::Time::now() - last_lidar_time_).toSec() <= 1.0;
+}
+
 void PX4CtrlFSM::fsmVisionLand() {
+    // 视觉降落逻辑已停用：当前 FSM 在 SOFT_LAND 中直接调用 fsmSoftLand()。
+    // 保留该函数仅作为历史实现参考，避免未来需要恢复时丢失接口说明。
     static bool land_initialized = false;
     static ros::Time land_start_time;
     static int land_num = 0;
@@ -1427,7 +1483,7 @@ bool PX4CtrlFSM::checkHeightForTargetReached()
     // Check if data is fresh enough (within 1 second)
     if ((ros::Time::now() - last_lidar_time_).toSec() > 1.0)
     {
-        ROS_WARN("[SimpleEgoPlanner] Laser scan data is too old!");
+        ROS_WARN("[PX4 FSM]: Landing height data is too old!");
         return false;
     }
     
@@ -1436,7 +1492,7 @@ bool PX4CtrlFSM::checkHeightForTargetReached()
     {
         if (range > 0.1 && range < range_threshold_)  // Filter out invalid data, check valid distances
         {
-            ROS_INFO("[SimpleEgoPlanner] Target reached! Height: %.2fm. Ready for GPS correction.", range);
+            ROS_INFO("[PX4 FSM]: Landing height %.2fm is below threshold %.2fm.", range, range_threshold_);
             return true;
         }
     }
@@ -1450,13 +1506,25 @@ void PX4CtrlFSM::handlePrecisionPositioning(double mission_distance, int fsm_num
         // Check GPS accuracy for precise positioning
         if (global_position_received_ && global_setpoint_received_) {
             double gps_distance = calculateGPSDistance(current_global_position_, target_global_position_);
+            const bool landing_height_available = hasFreshLandingHeightMeasurement();
+            bool height_ready_for_landing = false;
+            if (landing_height_available) {
+                height_ready_for_landing = checkHeightForTargetReached();
+            }
+
             if (fsm_num % 200 == 0)
                 std::cout << "[PX4 FSM]: Local distance: " << std::fixed << std::setprecision(2) 
                           << mission_distance << " m, GPS distance: " << gps_distance << " m" << std::endl;
             
-            if (gps_distance < 0.1 && checkHeightForTargetReached()) { // 10cm threshold
+            // When LiDAR is unavailable, allow entering SOFT_LAND based on GPS proximity.
+            // SOFT_LAND itself already handles LiDAR-missing behavior for AUTO_LAND gating.
+            if (gps_distance < 0.1 && (height_ready_for_landing || !landing_height_available)) { // 10cm threshold
                 traj_cmd_received_ = false;
-                std::cout << "\033[1;32m[PX4 FSM]: GPS position accurate (<10cm), switching to SOFT_LAND.\033[0m" << std::endl;
+                if (landing_height_available) {
+                    std::cout << "\033[1;32m[PX4 FSM]: GPS position accurate (<10cm) and landing height ready, switching to SOFT_LAND.\033[0m" << std::endl;
+                } else {
+                    std::cout << "\033[1;33m[PX4 FSM]: GPS position accurate (<10cm) but no fresh /scan, switching to SOFT_LAND without height gate.\033[0m" << std::endl;
+                }
                 changeFSMState(SOFT_LAND);
             } else {
                 // Calculate GPS correction vector in local coordinates

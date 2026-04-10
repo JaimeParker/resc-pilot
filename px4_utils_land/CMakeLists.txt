@@ -16,6 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
         rospy
         std_msgs
         quadrotor_msgs
+        gazebo_msgs
         cv_bridge
         image_transport 
         sensor_msgs
@@ -91,6 +92,9 @@ target_link_libraries(px4_fsm_interface_node_land ${catkin_LIBRARIES})
 
 add_executable(get_global_setpoint_node src/get_global_setpoint_node.cc)
 target_link_libraries(get_global_setpoint_node ${catkin_LIBRARIES})
+
+add_executable(fake_lidar_altimeter_node src/fake_lidar_altimeter_node.cc)
+target_link_libraries(fake_lidar_altimeter_node ${catkin_LIBRARIES})
 
 ##zhiyuan: add test executables
 # add_executable(vision_node src/utils/vision_orb.cc)

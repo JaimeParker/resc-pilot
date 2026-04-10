@@ -131,6 +131,7 @@ private:
     double ground_height_ = 0.0;
     double fence_offset_ = 0.5;
     double max_attitude_ = 37.5 * deg2rad_;
+    double landing_rtk_max_step_ = 0.10;
     const double waiting_time_ = 5.0;
     const float throttle_default_ = 0.5;
     const double traj_cmd_timeout_ = 0.5;
@@ -197,6 +198,7 @@ private:
     double z_stationary_window_sec_ = 1.0;     // duration to consider z as unchanged
     double z_stationary_epsilon_ = 0.01;       // 1 cm tolerance
     size_t z_history_max_len_ = 500;           // cap history to ~5s at 100Hz
+    bool hasFreshLandingHeightMeasurement() const;
     void updateZHistory(double z, const ros::Time &now);
     bool hasLandedFromZHistory(double window_sec, double epsilon) const;
 

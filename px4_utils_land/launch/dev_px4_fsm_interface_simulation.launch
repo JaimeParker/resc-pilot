@@ -1,4 +1,20 @@
 <launch>
+    <!-- Simulated altimeter: publish single-beam LaserScan to /scan from Gazebo true height -->
+    <node pkg="px4_utils_land" type="fake_lidar_altimeter_node" name="fake_lidar_altimeter" output="screen">
+        <param name="scan_topic" value="/scan" type="string"/>
+        <param name="frame_id" value="base_link" type="string"/>
+        <param name="drone_model_name" value="iris" type="string"/>
+        <param name="model_states_topic" value="/gazebo/model_states" type="string"/>
+        <param name="local_pose_topic" value="/mavros/local_position/pose" type="string"/>
+        <param name="use_gazebo_model_states" value="true" type="bool"/>
+        <param name="publish_rate" value="20.0" type="double"/>
+        <param name="landing_surface_z" value="0.0" type="double"/>
+        <param name="min_range" value="0.05" type="double"/>
+        <param name="max_range" value="30.0" type="double"/>
+        <param name="noise_stddev" value="0.00" type="double"/>
+        <param name="source_timeout_sec" value="0.5" type="double"/>
+    </node>
+
     <node pkg="px4_utils_land" type="get_global_setpoint_node" name="get_global_setpoint" output="screen">
         <param name="target_latitude" value="37.4142541" type="double"/>   
         <param name="target_longitude" value="-121.9958815" type="double"/> 
