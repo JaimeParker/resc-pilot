@@ -1,6 +1,7 @@
 # TF02-Pro ROS 节点改造说明（完整变更记录）
 
 日期：2026-04-15
+更新：2026-04-15（按 TF02-Pro 用户手册补充异常值与断流保护）
 
 ## 背景与目标
 
@@ -31,11 +32,16 @@
 6. 支持参数化：
    - 串口参数：`port`、`baudrate`、`serial_timeout`
    - 发布参数：`scan_topic`、`frame_id`、`publish_rate`
-   - 有效性参数：`range_min`、`range_max`、`signal_threshold`
+   - 有效性参数：`range_min`、`range_max`、`signal_threshold`、`low_signal_distance_cm`、`saturated_distance_cm`、`saturated_strength`
+   - 新鲜度参数：`data_stale_timeout`
    - 异常恢复：`reconnect_delay`
 7. 异常处理策略：串口断开/读失败后自动重连。
 8. 质量门控：
-   - 信号低于门限或超量程时，发布 `NaN`。
+   - 信号低于门限时（默认 `< 60`），发布 `NaN`。
+   - 命中手册低信号异常码（默认 `distance_cm == 4500`）时，发布 `NaN`。
+   - 命中手册饱和异常码（默认 `strength >= 65535` 或 `distance_cm >= 65534`）时，发布 `NaN`。
+   - 超量程时，发布 `NaN`。
+9. 断流保护：当超过 `data_stale_timeout` 未收到新帧时，发布 `NaN`，避免旧值持续重放。
 
 为什么这样改：
 
@@ -55,12 +61,18 @@
 2. 预置了常用参数默认值：
    - `port=/dev/ttyUSB0`
    - `baudrate=115200`
+   - `serial_timeout=0.1`
+   - `reconnect_delay=1.0`
+   - `data_stale_timeout=0.5`
    - `scan_topic=/scan`
    - `frame_id=base_link`
    - `publish_rate=20.0`
    - `range_min=0.05`
    - `range_max=30.0`
-   - `signal_threshold=0`
+   - `signal_threshold=60`
+   - `low_signal_distance_cm=4500`
+   - `saturated_distance_cm=65534`
+   - `saturated_strength=65535`
 
 为什么这样改：
 
@@ -130,6 +142,11 @@
 
 这与项目里 fake altimeter 的“单束 LaserScan”接口保持一致。
 
+补充说明：
+
+1. 当数据被判定为无效（低信号/异常码/超量程/断流过期）时，`ranges[0]` 输出 `NaN`。
+2. 断流过期时，`intensities[0]` 输出 `0`，用于标识当前帧不可用。
+
 ---
 
 ## 启动与验证建议（Linux）
@@ -141,6 +158,8 @@
    - `rostopic echo /scan`
 4. 确认 FSM 可见：
    - FSM 运行时应不再出现长期“无新鲜高度数据”的状态。
+5. 可选断流测试：
+   - 运行中临时断开 TF02 串口，确认 `/scan` 很快变为 `NaN`，恢复连接后自动回到有效数值。
 
 ---
 
@@ -149,7 +168,9 @@
 1. 串口权限：Linux 下可能需要 `dialout` 组权限。
 2. 串口路径：不同机器可能是 `/dev/ttyUSB0`、`/dev/ttyUSB1` 等。
 3. 量程与门限：
-   - 若现场噪声大，可提高 `signal_threshold`。
+   - 手册建议默认将 `signal_threshold` 设为 `60`。
+   - `low_signal_distance_cm` 建议保持 `4500`。
+   - `saturated_distance_cm/saturated_strength` 建议保持 `65534/65535`。
    - `range_min/range_max` 与传感器实际规格保持一致。
 4. 话题冲突：不要同时让多个节点发布 `/scan`（除非有明确仲裁）。
 

@@ -53,7 +53,11 @@ class Tf02ProAltimeterNode:
         self.frame_id = rospy.get_param("~frame_id", "base_link")
         self.range_min = float(rospy.get_param("~range_min", 0.05))
         self.range_max = float(rospy.get_param("~range_max", 30.0))
-        self.signal_threshold = int(rospy.get_param("~signal_threshold", 0))
+        self.signal_threshold = int(rospy.get_param("~signal_threshold", 60))
+        self.low_signal_distance_cm = int(rospy.get_param("~low_signal_distance_cm", 4500))
+        self.saturated_distance_cm = int(rospy.get_param("~saturated_distance_cm", 65534))
+        self.saturated_strength = int(rospy.get_param("~saturated_strength", 65535))
+        self.data_stale_timeout = float(rospy.get_param("~data_stale_timeout", 0.5))
         self.publish_rate = float(rospy.get_param("~publish_rate", 20.0))
 
         self._pub = rospy.Publisher(self.scan_topic, LaserScan, queue_size=10)
@@ -61,12 +65,18 @@ class Tf02ProAltimeterNode:
         self._latest_range_m = math.nan
         self._latest_strength = 0
         self._latest_stamp = rospy.Time(0)
+        self._latest_update_walltime = time.monotonic()
 
         self._reader_thread = threading.Thread(target=self._read_loop, daemon=True)
         self._reader_thread.start()
 
-        rospy.loginfo("[TF02] Node started. port=%s baudrate=%d publish_topic=%s",
-                      self.port, self.baudrate, self.scan_topic)
+        rospy.loginfo(
+            "[TF02] Node started. port=%s baudrate=%d publish_topic=%s signal_threshold=%d",
+            self.port,
+            self.baudrate,
+            self.scan_topic,
+            self.signal_threshold,
+        )
 
     def _read_frame(self, port: serial.Serial) -> tuple[int, int]:
         while not rospy.is_shutdown():
@@ -107,7 +117,14 @@ class Tf02ProAltimeterNode:
 
                         range_m = float(distance_cm) / 100.0
 
-                        if strength < self.signal_threshold:
+                        is_low_signal = strength < self.signal_threshold
+                        is_vendor_low_signal_code = distance_cm == self.low_signal_distance_cm
+                        is_saturated = (
+                            strength >= self.saturated_strength
+                            or distance_cm >= self.saturated_distance_cm
+                        )
+
+                        if is_low_signal or is_vendor_low_signal_code or is_saturated:
                             range_m = math.nan
                         elif range_m < self.range_min or range_m > self.range_max:
                             range_m = math.nan
@@ -116,11 +133,12 @@ class Tf02ProAltimeterNode:
                             self._latest_range_m = range_m
                             self._latest_strength = strength
                             self._latest_stamp = rospy.Time.now()
+                            self._latest_update_walltime = time.monotonic()
             except SerialException as exc:
                 rospy.logwarn_throttle(2.0, "[TF02] Serial open/read failed on %s: %s", self.port, str(exc))
                 time.sleep(self.reconnect_delay)
 
-    def _build_scan(self, stamp: rospy.Time, value: float) -> LaserScan:
+    def _build_scan(self, stamp: rospy.Time, value: float, strength: int) -> LaserScan:
         msg = LaserScan()
         msg.header.stamp = stamp
         msg.header.frame_id = self.frame_id
@@ -133,7 +151,7 @@ class Tf02ProAltimeterNode:
         msg.range_min = self.range_min
         msg.range_max = self.range_max
         msg.ranges = [value]
-        msg.intensities = [float(self._latest_strength)]
+        msg.intensities = [float(strength)]
         return msg
 
     def spin(self) -> None:
@@ -142,8 +160,15 @@ class Tf02ProAltimeterNode:
             with self._lock:
                 value = self._latest_range_m
                 stamp = self._latest_stamp if self._latest_stamp != rospy.Time(0) else rospy.Time.now()
+                strength = self._latest_strength
+                is_stale = (time.monotonic() - self._latest_update_walltime) > self.data_stale_timeout
 
-            self._pub.publish(self._build_scan(stamp, value))
+            if is_stale:
+                value = math.nan
+                strength = 0
+                stamp = rospy.Time.now()
+
+            self._pub.publish(self._build_scan(stamp, value, strength))
             rate.sleep()
 
 
