@@ -4,12 +4,16 @@
         <param name="baudrate" value="115200" type="int"/>
         <param name="serial_timeout" value="0.1" type="double"/>
         <param name="reconnect_delay" value="1.0" type="double"/>
+        <param name="data_stale_timeout" value="0.5" type="double"/>
 
         <param name="scan_topic" value="/scan" type="string"/>
         <param name="frame_id" value="base_link" type="string"/>
         <param name="publish_rate" value="20.0" type="double"/>
         <param name="range_min" value="0.05" type="double"/>
         <param name="range_max" value="30.0" type="double"/>
-        <param name="signal_threshold" value="0" type="int"/>
+        <param name="signal_threshold" value="60" type="int"/>
+        <param name="low_signal_distance_cm" value="4500" type="int"/>
+        <param name="saturated_distance_cm" value="65534" type="int"/>
+        <param name="saturated_strength" value="65535" type="int"/>
     </node>
 </launch>
