@@ -116,3 +116,8 @@ target_link_libraries(test_hsv_unified ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
 
 add_executable(test_yolo_unified example/test_yolo_unified.cc)
 target_link_libraries(test_yolo_unified ${catkin_LIBRARIES} ${PROJECT_NAME})
+
+catkin_install_python(PROGRAMS
+        scripts/tf02_pro_altimeter_node.py
+        DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
